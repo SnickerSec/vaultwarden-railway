@@ -52,28 +52,47 @@ Complete guide covering:
 
 ## Setup Required
 
-To enable automated backups, you need to configure one GitHub secret:
+To enable automated backups, you need to configure three GitHub secrets:
 
-### Add Railway Token to GitHub
+### 1. Get Railway Token
 
-1. **Generate Railway Token:**
-   ```bash
-   railway login
-   railway token
-   ```
+Go to: https://railway.app/account/tokens
+- Click "Create Token"
+- Name it: "GitHub Actions Backup"
+- Copy the token (shown only once!)
 
-2. **Add to GitHub:**
-   - Go to: https://github.com/SnickerSec/vaultwarden-railway/settings/secrets/actions
-   - Click "New repository secret"
-   - Name: `RAILWAY_TOKEN`
-   - Value: (paste your Railway token)
-   - Click "Add secret"
+### 2. Get Railway Project and Environment IDs
 
-3. **Test the Setup:**
-   - Go to: https://github.com/SnickerSec/vaultwarden-railway/actions
-   - Select "Daily Database Backup"
-   - Click "Run workflow"
-   - Verify it completes successfully
+Run the helper script:
+```bash
+./scripts/get-railway-ids.sh
+```
+
+Or manually:
+1. Go to: https://railway.app/dashboard
+2. Click on your "vaultwarden-railway" project
+3. **Project ID** is in the URL: `https://railway.app/project/<PROJECT_ID>`
+4. Click on "production" environment
+5. **Environment ID** is in the URL: `https://railway.app/project/<PROJECT_ID>/<ENVIRONMENT_ID>`
+
+### 3. Add Secrets to GitHub
+
+Go to: https://github.com/SnickerSec/vaultwarden-railway/settings/secrets/actions
+
+Add these three secrets:
+
+| Secret Name | Value | Where to Get It |
+|-------------|-------|-----------------|
+| `RAILWAY_TOKEN` | Your Railway API token | https://railway.app/account/tokens |
+| `RAILWAY_PROJECT_ID` | Your project ID | From Railway project URL |
+| `RAILWAY_ENVIRONMENT_ID` | Your environment ID | From Railway environment URL |
+
+### 4. Test the Setup
+
+1. Go to: https://github.com/SnickerSec/vaultwarden-railway/actions
+2. Select "Daily Database Backup"
+3. Click "Run workflow"
+4. Verify it completes successfully
 
 ## Backup Schedule
 

@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   backup:
@@ -16,13 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
-
       - name: Backup PostgreSQL Database
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
         run: |
           # Create backups directory
           mkdir -p backups
@@ -33,8 +32,23 @@ jobs:
 
           echo "Creating database backup..."
 
-          # Connect to Railway and dump database
-          railway run --service vaultwarden-railway-production pg_dump $DATABASE_URL > "$BACKUP_FILE"
+          # Get DATABASE_URL from Railway using their API
+          DATABASE_URL=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"query { variables(projectId: \\\"$RAILWAY_PROJECT_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", serviceId: null) }\"}" \
+            | jq -r '.data.variables.DATABASE_URL')
+
+          if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
+            echo "Error: Could not retrieve DATABASE_URL from Railway"
+            echo "Please ensure RAILWAY_PROJECT_ID and RAILWAY_ENVIRONMENT_ID secrets are set"
+            exit 1
+          fi
+
+          echo "Database URL retrieved successfully"
+
+          # Create backup using pg_dump
+          pg_dump "$DATABASE_URL" > "$BACKUP_FILE"
 
           # Compress backup
           gzip "$BACKUP_FILE"
