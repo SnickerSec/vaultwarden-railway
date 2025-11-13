@@ -16,6 +16,16 @@ backups/
 *.log
 logs/
 
+# Secrets and tokens (IMPORTANT)
+.admin-token-backup.txt
+*token*.txt
+*secret*.txt
+*.key
+*.pem
+
+# Railway
+.railway/
+
 # OS files
 .DS_Store
 Thumbs.db

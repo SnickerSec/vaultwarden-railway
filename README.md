@@ -271,18 +271,36 @@ For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 ./scripts/check-version.sh
 ```
 
+## Repository Structure
+
+```
+vaultwarden-railway/
+├── .github/workflows/      # GitHub Actions (backups, updates)
+├── archive/                # Archived/unused files
+├── config/                 # Configuration files and examples
+├── docs/                   # Complete documentation
+│   ├── QUICK_START.md     # Fast setup guide
+│   ├── DEPLOY.md          # Detailed deployment
+│   ├── SECURITY.md        # Security best practices
+│   ├── RATE_LIMITING.md   # Rate limiting setup
+│   ├── EMAIL_SETUP.md     # SMTP configuration
+│   ├── BACKUP.md          # Backup procedures
+│   └── ...                # More guides
+├── scripts/                # Utility scripts
+│   ├── backup-vault.sh    # Database backup
+│   ├── setup-rate-limiting.sh
+│   └── check-version.sh
+├── Dockerfile              # Main Docker configuration
+├── railway.toml            # Railway platform config
+└── README.md               # This file
+```
+
 ## Resources
 
 - [Vaultwarden Wiki](https://github.com/dani-garcia/vaultwarden/wiki)
 - [Bitwarden Help Center](https://bitwarden.com/help/)
 - [Railway Documentation](https://docs.railway.app/)
-- [Update Guide](docs/UPDATES.md) - Automatic update documentation
-- [Backup Guide](docs/BACKUP.md) - Automated and manual backup procedures
-- [Rate Limiting Guide](docs/RATE_LIMITING.md) - Protection against brute-force attacks
-- [Deployment Guide](docs/DEPLOY.md) - Detailed Railway setup
-- [Quick Start Guide](docs/QUICK_START.md) - Fast setup walkthrough
-- [Security Guide](docs/SECURITY.md) - Security best practices and admin token setup
-- [Cloudflare Setup](docs/CLOUDFLARE_SETUP.md) - Optional access control
+- [Documentation Index](docs/README.md) - Complete guide index
 
 ## License
 
