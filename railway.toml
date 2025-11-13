@@ -11,7 +11,7 @@ restartPolicyMaxRetries = 10
 # Volume configuration for persistent data storage
 [[deploy.volumes]]
 mountPath = "/data"
-name = "vaultwarden-data"
+name = "vaultwarden-railway-volume"
 
 # Auto-deploy settings
 [deploy.triggers]
