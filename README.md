@@ -238,6 +238,7 @@ For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 - [Update Guide](docs/UPDATES.md) - Automatic update documentation
 - [Deployment Guide](docs/DEPLOY.md) - Detailed Railway setup
 - [Quick Start Guide](docs/QUICK_START.md) - Fast setup walkthrough
+- [Security Guide](docs/SECURITY.md) - Security best practices and admin token setup
 - [Cloudflare Setup](docs/CLOUDFLARE_SETUP.md) - Optional access control
 
 ## License
