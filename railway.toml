@@ -1,8 +1,6 @@
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
-# Always pull latest image on rebuild
-watchPatterns = ["**"]
 
 [deploy]
 healthcheckPath = "/alive"
