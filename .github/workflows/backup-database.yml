@@ -35,18 +35,31 @@ jobs:
 
           echo "Creating database backup..."
 
-          # Link to Railway project
-          railway link $RAILWAY_PROJECT_ID
+          # Create .railway directory with project config
+          mkdir -p .railway
+          cat > .railway/config.json << EOF
+{
+  "projectId": "$RAILWAY_PROJECT_ID"
+}
+EOF
 
           # Get DATABASE_URL using Railway CLI
           echo "Fetching DATABASE_URL from Railway..."
-          DATABASE_URL=$(railway variables --json | jq -r '.DATABASE_URL // empty')
+          DATABASE_URL=$(railway variables --json 2>&1 | jq -r '.DATABASE_URL // empty')
 
-          if [ -z "$DATABASE_URL" ]; then
+          if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
             echo "Error: Could not retrieve DATABASE_URL from Railway"
             echo "Available variables:"
-            railway variables
-            exit 1
+            railway variables 2>&1 || true
+            echo "Trying alternative method..."
+
+            # Alternative: Use railway run to get the URL
+            DATABASE_URL=$(railway run --service postgres echo "\$DATABASE_URL" 2>&1)
+
+            if [ -z "$DATABASE_URL" ] || [[ "$DATABASE_URL" == *"error"* ]]; then
+              echo "Failed to get DATABASE_URL. Response: $DATABASE_URL"
+              exit 1
+            fi
           fi
 
           echo "Database URL retrieved successfully"
