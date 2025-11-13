@@ -8,6 +8,11 @@ healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
+# Volume configuration for persistent data storage
+[[deploy.volumes]]
+mountPath = "/data"
+name = "vaultwarden-data"
+
 # Auto-deploy settings
 [deploy.triggers]
 # Automatically deploy on git push
