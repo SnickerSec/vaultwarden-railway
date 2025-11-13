@@ -119,14 +119,19 @@ fi
 echo ""
 print_info "Setting Railway environment variables..."
 
-# Set variables
-railway variables set LOGIN_RATELIMIT_MAX_BURST="$LOGIN_BURST"
-railway variables set LOGIN_RATELIMIT_SECONDS="$LOGIN_SECONDS"
-railway variables set ADMIN_RATELIMIT_MAX_BURST="$ADMIN_BURST"
-railway variables set ADMIN_RATELIMIT_SECONDS="$ADMIN_SECONDS"
-railway variables set IP_HEADER="X-Forwarded-For"
+# Set variables using Railway CLI
+railway variables --set "LOGIN_RATELIMIT_MAX_BURST=$LOGIN_BURST" \
+                  --set "LOGIN_RATELIMIT_SECONDS=$LOGIN_SECONDS" \
+                  --set "ADMIN_RATELIMIT_MAX_BURST=$ADMIN_BURST" \
+                  --set "ADMIN_RATELIMIT_SECONDS=$ADMIN_SECONDS" \
+                  --set "IP_HEADER=X-Forwarded-For"
 
-print_success "Rate limiting configured!"
+if [ $? -eq 0 ]; then
+    print_success "Rate limiting configured!"
+else
+    print_error "Failed to set variables"
+    exit 1
+fi
 
 echo ""
 print_warning "IMPORTANT: You need to redeploy for changes to take effect"
