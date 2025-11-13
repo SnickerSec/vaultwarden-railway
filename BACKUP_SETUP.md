@@ -52,42 +52,35 @@ Complete guide covering:
 
 ## Setup Required
 
-To enable automated backups, you need to configure three GitHub secrets:
+To enable automated backups, you need to add ONE GitHub secret:
 
-### 1. Get Railway Token
+### 1. Get Your DATABASE_URL from Railway
 
-Go to: https://railway.app/account/tokens
-- Click "Create Token"
-- Name it: "GitHub Actions Backup"
-- Copy the token (shown only once!)
+**Option A: Via Railway Dashboard**
+1. Go to: https://railway.app/project/your-project/production
+2. Click on your PostgreSQL service
+3. Go to "Variables" tab
+4. Copy the value of `DATABASE_URL`
 
-### 2. Get Railway Project and Environment IDs
-
-Run the helper script:
+**Option B: Via Railway CLI (locally)**
 ```bash
-./scripts/get-railway-ids.sh
+cd ~/pasman/vaultwarden-railway
+railway variables | grep DATABASE_URL
 ```
 
-Or manually:
-1. Go to: https://railway.app/dashboard
-2. Click on your "vaultwarden-railway" project
-3. **Project ID** is in the URL: `https://railway.app/project/<PROJECT_ID>`
-4. Click on "production" environment
-5. **Environment ID** is in the URL: `https://railway.app/project/<PROJECT_ID>/<ENVIRONMENT_ID>`
-
-### 3. Add Secrets to GitHub
+### 2. Add Secret to GitHub
 
 Go to: https://github.com/SnickerSec/vaultwarden-railway/settings/secrets/actions
 
-Add these three secrets:
+Click "New repository secret" and add:
 
-| Secret Name | Value | Where to Get It |
-|-------------|-------|-----------------|
-| `RAILWAY_TOKEN` | Your Railway API token | https://railway.app/account/tokens |
-| `RAILWAY_PROJECT_ID` | Your project ID | From Railway project URL |
-| `RAILWAY_ENVIRONMENT_ID` | Your environment ID | From Railway environment URL |
+| Secret Name | Value |
+|-------------|-------|
+| `DATABASE_URL` | Your PostgreSQL connection string from Railway (starts with `postgresql://`) |
 
-### 4. Test the Setup
+**Important:** This is sensitive data - never commit it to the repository!
+
+### 3. Test the Setup
 
 1. Go to: https://github.com/SnickerSec/vaultwarden-railway/actions
 2. Select "Daily Database Backup"

@@ -22,14 +22,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
-
       - name: Backup PostgreSQL Database
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           # Create backups directory
           mkdir -p backups
@@ -40,38 +35,14 @@ jobs:
 
           echo "Creating database backup..."
 
-          # Create .railway directory with project config
-          mkdir -p .railway
-          echo "{\"projectId\": \"$RAILWAY_PROJECT_ID\"}" > .railway/config.json
-
-          # Get DATABASE_URL using Railway CLI
-          echo "Fetching DATABASE_URL from Railway..."
-
-          # First, check what railway variables returns
-          VARS_OUTPUT=$(railway variables --json 2>&1)
-          echo "Railway variables output: $VARS_OUTPUT"
-
-          # Try to parse it
-          DATABASE_URL=$(echo "$VARS_OUTPUT" | jq -r '.DATABASE_URL // empty' 2>/dev/null || echo "")
-
-          if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
-            echo "Could not get DATABASE_URL from JSON output"
-            echo "Trying alternative: railway run method..."
-
-            # Alternative: Use railway run to extract the variable from the environment
-            DATABASE_URL=$(railway run echo "\$DATABASE_URL" 2>&1)
-
-            if [ -z "$DATABASE_URL" ] || [[ "$DATABASE_URL" == *"error"* ]] || [[ "$DATABASE_URL" == *"Error"* ]]; then
-              echo "Failed to get DATABASE_URL."
-              echo "Response: $DATABASE_URL"
-              echo ""
-              echo "Available variables (non-JSON):"
-              railway variables 2>&1 || true
-              exit 1
-            fi
+          # Verify DATABASE_URL is set
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Error: DATABASE_URL secret is not set"
+            echo "Please add DATABASE_URL to GitHub Secrets"
+            exit 1
           fi
 
-          echo "Database URL retrieved successfully"
+          echo "DATABASE_URL is configured"
 
           # Create backup using pg_dump
           pg_dump "$DATABASE_URL" > "$BACKUP_FILE"
