@@ -42,13 +42,7 @@ jobs:
 
           # Create .railway directory with project config
           mkdir -p .railway
-          cat > .railway/config.json << 'EOFCONFIG'
-{
-  "projectId": "$RAILWAY_PROJECT_ID"
-}
-EOFCONFIG
-          # Substitute the actual project ID
-          sed -i "s/\$RAILWAY_PROJECT_ID/$RAILWAY_PROJECT_ID/g" .railway/config.json
+          echo "{\"projectId\": \"$RAILWAY_PROJECT_ID\"}" > .railway/config.json
 
           # Get DATABASE_URL using Railway CLI
           echo "Fetching DATABASE_URL from Railway..."
