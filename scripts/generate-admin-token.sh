@@ -18,50 +18,60 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-echo "This script will generate a secure Argon2 PHC hashed admin token."
+echo "This script will help you generate a secure Argon2 PHC hashed admin token."
 echo ""
-read -p "Enter a password for your admin token (or press Enter for random): " ADMIN_PASSWORD
+echo "You have two options:"
+echo ""
+echo "1. Interactive mode - You'll enter your password directly (recommended)"
+echo "2. Generate random password - Script creates a random password for you"
+echo ""
+read -p "Choose option (1 or 2): " OPTION
 
-if [ -z "$ADMIN_PASSWORD" ]; then
+if [ "$OPTION" == "2" ]; then
     # Generate random password
     ADMIN_PASSWORD=$(openssl rand -base64 32)
     echo ""
     echo "Generated random password: $ADMIN_PASSWORD"
     echo "⚠️  SAVE THIS PASSWORD - You'll need it to access the admin panel!"
     echo ""
+    echo "Press Enter to continue..."
+    read
 fi
 
 echo ""
-echo "Generating Argon2 hash..."
+echo "=========================================="
+echo "Running Vaultwarden hash command..."
+echo "=========================================="
 echo ""
 
-# Use vaultwarden docker image to hash the password
-HASHED_TOKEN=$(docker run --rm -it vaultwarden/server:latest \
-    /vaultwarden hash --preset owasp "$ADMIN_PASSWORD" 2>/dev/null | grep -v "Password" | tr -d '\r')
-
-if [ -z "$HASHED_TOKEN" ]; then
-    echo "Error: Failed to generate hash"
-    exit 1
+if [ "$OPTION" == "2" ]; then
+    echo "The Docker container will now prompt you to enter a password."
+    echo "Enter this password: $ADMIN_PASSWORD"
+    echo ""
+    echo "Press Enter to continue..."
+    read
 fi
 
-echo "=========================================="
-echo "✅ Success! Your secure ADMIN_TOKEN:"
-echo "=========================================="
-echo ""
-echo "$HASHED_TOKEN"
+# Run the hash command interactively
+docker run --rm -it vaultwarden/server:latest /vaultwarden hash --preset owasp
+
 echo ""
 echo "=========================================="
 echo "Next Steps:"
 echo "=========================================="
 echo ""
-echo "1. Copy the hash above"
+echo "1. Copy the hash that starts with \$argon2id\$ (from above)"
 echo "2. Go to your Railway dashboard"
 echo "3. Navigate to your Vaultwarden service → Variables"
-echo "4. Update ADMIN_TOKEN with the hash above"
+echo "4. Update ADMIN_TOKEN with the hash you copied"
 echo "5. Save and redeploy"
 echo ""
 echo "6. Access admin panel at: https://your-domain.railway.app/admin"
-echo "   Use password: $ADMIN_PASSWORD"
-echo ""
-echo "⚠️  IMPORTANT: Save this password somewhere secure!"
+if [ "$OPTION" == "2" ]; then
+    echo "   Use password: $ADMIN_PASSWORD"
+    echo ""
+    echo "⚠️  IMPORTANT: Save this password somewhere secure!"
+else
+    echo "   Use the password you just entered"
+fi
 echo "=========================================="
