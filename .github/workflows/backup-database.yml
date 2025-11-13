@@ -33,15 +33,20 @@ jobs:
           echo "Creating database backup..."
 
           # Get DATABASE_URL from Railway using their API
-          DATABASE_URL=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+          echo "Fetching variables from Railway API..."
+          RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"query { variables(projectId: \\\"$RAILWAY_PROJECT_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", serviceId: null) }\"}" \
-            | jq -r '.data.variables.DATABASE_URL')
+            -d "{\"query\": \"query { variables(projectId: \\\"$RAILWAY_PROJECT_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\") }\"}")
 
-          if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
+          echo "API Response (first 500 chars): ${RESPONSE:0:500}"
+
+          DATABASE_URL=$(echo "$RESPONSE" | jq -r '.data.variables.DATABASE_URL // empty')
+
+          if [ -z "$DATABASE_URL" ]; then
             echo "Error: Could not retrieve DATABASE_URL from Railway"
-            echo "Please ensure RAILWAY_PROJECT_ID and RAILWAY_ENVIRONMENT_ID secrets are set"
+            echo "Full API response:"
+            echo "$RESPONSE" | jq '.'
             exit 1
           fi
 
