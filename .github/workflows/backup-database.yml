@@ -46,19 +46,27 @@ jobs:
 
           # Get DATABASE_URL using Railway CLI
           echo "Fetching DATABASE_URL from Railway..."
-          DATABASE_URL=$(railway variables --json 2>&1 | jq -r '.DATABASE_URL // empty')
+
+          # First, check what railway variables returns
+          VARS_OUTPUT=$(railway variables --json 2>&1)
+          echo "Railway variables output: $VARS_OUTPUT"
+
+          # Try to parse it
+          DATABASE_URL=$(echo "$VARS_OUTPUT" | jq -r '.DATABASE_URL // empty' 2>/dev/null || echo "")
 
           if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
-            echo "Error: Could not retrieve DATABASE_URL from Railway"
-            echo "Available variables:"
-            railway variables 2>&1 || true
-            echo "Trying alternative method..."
+            echo "Could not get DATABASE_URL from JSON output"
+            echo "Trying alternative: railway run method..."
 
-            # Alternative: Use railway run to get the URL
-            DATABASE_URL=$(railway run --service postgres echo "\$DATABASE_URL" 2>&1)
+            # Alternative: Use railway run to extract the variable from the environment
+            DATABASE_URL=$(railway run echo "\$DATABASE_URL" 2>&1)
 
-            if [ -z "$DATABASE_URL" ] || [[ "$DATABASE_URL" == *"error"* ]]; then
-              echo "Failed to get DATABASE_URL. Response: $DATABASE_URL"
+            if [ -z "$DATABASE_URL" ] || [[ "$DATABASE_URL" == *"error"* ]] || [[ "$DATABASE_URL" == *"Error"* ]]; then
+              echo "Failed to get DATABASE_URL."
+              echo "Response: $DATABASE_URL"
+              echo ""
+              echo "Available variables (non-JSON):"
+              railway variables 2>&1 || true
               exit 1
             fi
           fi
