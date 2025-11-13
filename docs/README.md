@@ -8,6 +8,7 @@ This directory contains all documentation for the Vaultwarden Railway deployment
 - **[DEPLOY.md](DEPLOY.md)** - Detailed deployment guide
 - **[SECURITY.md](SECURITY.md)** - Security best practices and admin token setup
 - **[RATE_LIMITING.md](RATE_LIMITING.md)** - Rate limiting configuration and protection
+- **[EMAIL_SETUP.md](EMAIL_SETUP.md)** - SMTP email notifications configuration
 - **[BACKUP.md](BACKUP.md)** - Automated daily backups and restore procedures
 - **[UPDATES.md](UPDATES.md)** - Automatic update information
 - **[GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)** - Optional Google OAuth protection
@@ -23,6 +24,9 @@ New users should start with [QUICK_START.md](QUICK_START.md) for a streamlined s
 For additional security layers:
 - Add Google OAuth authentication: [GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)
 - Configure Cloudflare access control: [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)
+
+For email notifications:
+- Configure SMTP settings: [EMAIL_SETUP.md](EMAIL_SETUP.md)
 
 ## Maintenance
 

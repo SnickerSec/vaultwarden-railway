@@ -70,6 +70,12 @@ ADMIN_RATELIMIT_SECONDS=300
 IP_HEADER=X-Forwarded-For
 ```
 
+## Email Configuration
+
+Want to enable email notifications for password hints, 2FA recovery, and security alerts?
+
+See: [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md)
+
 ## More Information
 
 - Full documentation: [docs/RATE_LIMITING.md](docs/RATE_LIMITING.md)
