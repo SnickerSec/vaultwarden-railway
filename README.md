@@ -185,11 +185,36 @@ See **[GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md)** for detailed setup ins
 1. **Use a strong master password** - This is your only key to decrypt data
 2. **Enable 2FA** on your Vaultwarden account
 3. **Disable signups** after creating your account
-4. **Use HTTPS** - Railway provides this automatically (port 443)
-5. **Backup regularly** - Export your vault periodically
-6. **Keep admin token secret** - Never commit it to version control
-7. **Use PostgreSQL** for production - More reliable than SQLite
-8. **Consider Google OAuth** - Optional extra authentication layer
+4. **Configure rate limiting** - Protect against brute-force attacks (see below)
+5. **Use HTTPS** - Railway provides this automatically (port 443)
+6. **Backup regularly** - Export your vault periodically
+7. **Keep admin token secret** - Never commit it to version control
+8. **Use PostgreSQL** for production - More reliable than SQLite
+9. **Consider Google OAuth** - Optional extra authentication layer
+
+## Rate Limiting
+
+Protect your instance from brute-force attacks with built-in rate limiting:
+
+**Quick Setup:**
+```bash
+./scripts/setup-rate-limiting.sh
+```
+
+This configures:
+- Login attempt limits (default: 10 per minute)
+- Admin panel limits (default: 3 per 5 minutes)
+- Proper IP detection for Railway
+
+**Manual Configuration:**
+Set these variables in Railway dashboard:
+- `LOGIN_RATELIMIT_MAX_BURST=10`
+- `LOGIN_RATELIMIT_SECONDS=60`
+- `ADMIN_RATELIMIT_MAX_BURST=3`
+- `ADMIN_RATELIMIT_SECONDS=300`
+- `IP_HEADER=X-Forwarded-For`
+
+See **[docs/RATE_LIMITING.md](docs/RATE_LIMITING.md)** for detailed configuration options and security levels.
 
 ## Troubleshooting
 
@@ -253,6 +278,7 @@ For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 - [Railway Documentation](https://docs.railway.app/)
 - [Update Guide](docs/UPDATES.md) - Automatic update documentation
 - [Backup Guide](docs/BACKUP.md) - Automated and manual backup procedures
+- [Rate Limiting Guide](docs/RATE_LIMITING.md) - Protection against brute-force attacks
 - [Deployment Guide](docs/DEPLOY.md) - Detailed Railway setup
 - [Quick Start Guide](docs/QUICK_START.md) - Fast setup walkthrough
 - [Security Guide](docs/SECURITY.md) - Security best practices and admin token setup
