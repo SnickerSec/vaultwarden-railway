@@ -1,0 +1,92 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    # Run daily at 3 AM UTC (after update check at 2 AM)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli
+
+      - name: Backup PostgreSQL Database
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Create backups directory
+          mkdir -p backups
+
+          # Set timestamp
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="backups/vaultwarden_db_backup_${TIMESTAMP}.sql"
+
+          echo "Creating database backup..."
+
+          # Connect to Railway and dump database
+          railway run --service vaultwarden-railway-production pg_dump $DATABASE_URL > "$BACKUP_FILE"
+
+          # Compress backup
+          gzip "$BACKUP_FILE"
+
+          echo "Backup created: ${BACKUP_FILE}.gz"
+
+          # Calculate backup size
+          BACKUP_SIZE=$(du -h "${BACKUP_FILE}.gz" | cut -f1)
+          echo "Backup size: $BACKUP_SIZE"
+
+          # Keep only last 30 days of backups
+          find backups -name "vaultwarden_db_backup_*.sql.gz" -mtime +30 -delete
+
+          echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_ENV
+          echo "backup_size=$BACKUP_SIZE" >> $GITHUB_ENV
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_ENV
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vaultwarden-backup-${{ env.timestamp }}
+          path: ${{ env.backup_file }}
+          retention-days: 90
+
+      - name: Commit backup metadata
+        run: |
+          # Create backup log entry
+          mkdir -p backups/logs
+          cat << EOF > backups/logs/backup_${TIMESTAMP}.log
+          Backup completed successfully
+          Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          File: ${BACKUP_FILE}.gz
+          Size: $BACKUP_SIZE
+          Retention: 90 days in GitHub Actions artifacts
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add backups/logs/backup_${TIMESTAMP}.log
+          git commit -m "chore: backup log for ${TIMESTAMP}" || echo "No changes to commit"
+          git push || echo "Nothing to push"
+
+      - name: Create backup notification
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Database Backup Failed',
+              body: `The automated database backup failed.\n\n**Time:** ${new Date().toUTCString()}\n**Workflow:** ${context.workflow}\n**Run:** ${context.runId}\n\nPlease check the workflow logs and ensure Railway token is configured correctly.`,
+              labels: ['backup', 'automated', 'failure']
+            })

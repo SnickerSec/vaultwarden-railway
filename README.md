@@ -141,16 +141,32 @@ railway variables set SMTP_PASSWORD=your-app-password
 
 ## Backup Your Data
 
-### Railway Volumes (Recommended)
+### Automated Daily Backups
 
-Railway automatically backs up your data, but you should also:
+This deployment includes **automated daily database backups**:
 
-1. **Export from web vault**
+- Runs daily at 3 AM UTC via GitHub Actions
+- PostgreSQL database dumps stored as artifacts
+- 90-day retention in GitHub Actions
+- Automatic notifications on failure
+
+**Setup:** Add your Railway token to GitHub Secrets as `RAILWAY_TOKEN`
+
+See **[docs/BACKUP.md](docs/BACKUP.md)** for complete backup and restore procedures.
+
+### Manual Backup Options
+
+1. **Backup script** (Quick local backup):
+   ```bash
+   ./scripts/backup-vault.sh
+   ```
+
+2. **Export from web vault**
    - Go to Tools → Export Vault
    - Save the encrypted JSON file securely
 
-2. **Database backup** (if using PostgreSQL)
-   - Use Railway's database backup features
+3. **Railway's database backup features**
+   - Access via Railway dashboard → PostgreSQL → Backups
 
 ## Optional: Google OAuth Protection
 
@@ -236,6 +252,7 @@ For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 - [Bitwarden Help Center](https://bitwarden.com/help/)
 - [Railway Documentation](https://docs.railway.app/)
 - [Update Guide](docs/UPDATES.md) - Automatic update documentation
+- [Backup Guide](docs/BACKUP.md) - Automated and manual backup procedures
 - [Deployment Guide](docs/DEPLOY.md) - Detailed Railway setup
 - [Quick Start Guide](docs/QUICK_START.md) - Fast setup walkthrough
 - [Security Guide](docs/SECURITY.md) - Security best practices and admin token setup

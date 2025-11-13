@@ -6,6 +6,12 @@
 data/
 vw-data/
 
+# Backups (contains sensitive data)
+backups/
+*.sql
+*.sql.gz
+*_backup_*.json
+
 # Logs
 *.log
 logs/

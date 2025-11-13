@@ -7,6 +7,7 @@ This directory contains all documentation for the Vaultwarden Railway deployment
 - **[QUICK_START.md](QUICK_START.md)** - Get started in under 10 minutes
 - **[DEPLOY.md](DEPLOY.md)** - Detailed deployment guide
 - **[SECURITY.md](SECURITY.md)** - Security best practices and admin token setup
+- **[BACKUP.md](BACKUP.md)** - Automated daily backups and restore procedures
 - **[UPDATES.md](UPDATES.md)** - Automatic update information
 - **[GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)** - Optional Google OAuth protection
 - **[CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)** - Optional Cloudflare access control
@@ -24,4 +25,5 @@ For additional security layers:
 
 ## Maintenance
 
-Learn about automatic updates and version management in [UPDATES.md](UPDATES.md).
+- **Backups:** Learn about automated daily backups and restore procedures in [BACKUP.md](BACKUP.md)
+- **Updates:** Learn about automatic updates and version management in [UPDATES.md](UPDATES.md)
