@@ -17,11 +17,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli
+
       - name: Backup PostgreSQL Database
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
         run: |
           # Create backups directory
           mkdir -p backups
@@ -32,21 +35,17 @@ jobs:
 
           echo "Creating database backup..."
 
-          # Get DATABASE_URL from Railway using their API
-          echo "Fetching variables from Railway API..."
-          RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"query { variables(projectId: \\\"$RAILWAY_PROJECT_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\") }\"}")
+          # Link to Railway project
+          railway link $RAILWAY_PROJECT_ID
 
-          echo "API Response (first 500 chars): ${RESPONSE:0:500}"
-
-          DATABASE_URL=$(echo "$RESPONSE" | jq -r '.data.variables.DATABASE_URL // empty')
+          # Get DATABASE_URL using Railway CLI
+          echo "Fetching DATABASE_URL from Railway..."
+          DATABASE_URL=$(railway variables --json | jq -r '.DATABASE_URL // empty')
 
           if [ -z "$DATABASE_URL" ]; then
             echo "Error: Could not retrieve DATABASE_URL from Railway"
-            echo "Full API response:"
-            echo "$RESPONSE" | jq '.'
+            echo "Available variables:"
+            railway variables
             exit 1
           fi
 
