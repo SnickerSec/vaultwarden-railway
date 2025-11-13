@@ -79,24 +79,15 @@ jobs:
           path: ${{ env.backup_file }}
           retention-days: 90
 
-      - name: Commit backup metadata
+      - name: Backup Success Summary
         run: |
-          # Create backup log entry
-          mkdir -p backups/logs
-          cat << EOF > backups/logs/backup_${TIMESTAMP}.log
-          Backup completed successfully
-          Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          File: ${BACKUP_FILE}.gz
-          Size: $BACKUP_SIZE
-          Retention: 90 days in GitHub Actions artifacts
-          EOF
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add backups/logs/backup_${TIMESTAMP}.log
-          git commit -m "chore: backup log for ${TIMESTAMP}" || echo "No changes to commit"
-          git push || echo "Nothing to push"
+          echo "✅ Backup completed successfully!"
+          echo "📦 Backup file: ${{ env.backup_file }}"
+          echo "📊 Backup size: ${{ env.backup_size }}"
+          echo "🕐 Timestamp: ${{ env.timestamp }}"
+          echo "📅 Retention: 90 days in GitHub Actions artifacts"
+          echo ""
+          echo "To download: Go to Actions → This workflow run → Artifacts"
 
       - name: Create backup notification
         if: failure()
