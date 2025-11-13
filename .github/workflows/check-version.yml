@@ -1,0 +1,82 @@
+name: Weekly Version Report
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  version-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check versions
+        id: versions
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(grep "FROM vaultwarden/server:" Dockerfile | cut -d':' -f2)
+
+          # Get latest version
+          LATEST_VERSION=$(curl -s https://hub.docker.com/v2/repositories/vaultwarden/server/tags/?page_size=100 | \
+            jq -r '.results[].name' | \
+            grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
+            sort -V | \
+            tail -1)
+
+          # Get recent versions
+          RECENT_VERSIONS=$(curl -s https://hub.docker.com/v2/repositories/vaultwarden/server/tags/?page_size=100 | \
+            jq -r '.results[].name' | \
+            grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
+            sort -V | \
+            tail -5 | \
+            tr '\n' ', ')
+
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "recent=$RECENT_VERSIONS" >> $GITHUB_OUTPUT
+
+          # Check update status
+          if [ "$CURRENT_VERSION" = "latest" ]; then
+            echo "status=✅ Using 'latest' tag - always up to date" >> $GITHUB_OUTPUT
+          elif [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "status=✅ Up to date" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Update available" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create version report
+        run: |
+          cat << EOF > version-report.md
+          # Vaultwarden Version Report
+
+          **Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          ## Current Status
+          - **Current Version:** ${{ steps.versions.outputs.current }}
+          - **Latest Version:** ${{ steps.versions.outputs.latest }}
+          - **Status:** ${{ steps.versions.outputs.status }}
+
+          ## Recent Versions
+          ${{ steps.versions.outputs.recent }}
+
+          ## Update Information
+          - Updates are checked daily at 2 AM UTC
+          - Automatic deployment triggers on new versions
+          - Manual updates can be triggered via workflow_dispatch
+
+          ## Resources
+          - [Vaultwarden Releases](https://github.com/dani-garcia/vaultwarden/releases)
+          - [Docker Hub](https://hub.docker.com/r/vaultwarden/server)
+          EOF
+
+          cat version-report.md
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-report
+          path: version-report.md
+          retention-days: 30

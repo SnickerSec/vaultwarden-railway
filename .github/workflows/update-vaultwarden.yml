@@ -1,0 +1,78 @@
+name: Check and Update Vaultwarden
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for new Vaultwarden version
+        id: check
+        run: |
+          # Get current version from Dockerfile
+          CURRENT_VERSION=$(grep "FROM vaultwarden/server:" Dockerfile | cut -d':' -f2)
+          echo "Current version: $CURRENT_VERSION"
+
+          # Get latest version from Docker Hub
+          LATEST_VERSION=$(curl -s https://hub.docker.com/v2/repositories/vaultwarden/server/tags/?page_size=100 | \
+            jq -r '.results[].name' | \
+            grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | \
+            sort -V | \
+            tail -1)
+
+          echo "Latest version: $LATEST_VERSION"
+          echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+
+          # Check if using 'latest' tag or if update is available
+          if [ "$CURRENT_VERSION" = "latest" ]; then
+            echo "Using 'latest' tag - will trigger rebuild"
+            echo "update_available=true" >> $GITHUB_OUTPUT
+            echo "update_type=rebuild" >> $GITHUB_OUTPUT
+          elif [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "Update available!"
+            echo "update_available=true" >> $GITHUB_OUTPUT
+            echo "update_type=version" >> $GITHUB_OUTPUT
+          else
+            echo "Already on latest version"
+            echo "update_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Railway deployment
+        if: steps.check.outputs.update_available == 'true'
+        run: |
+          echo "Triggering Railway deployment for Vaultwarden update"
+          # Create empty commit to trigger Railway deployment
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ "${{ steps.check.outputs.update_type }}" = "rebuild" ]; then
+            git commit --allow-empty -m "chore: rebuild for latest Vaultwarden version"
+          else
+            git commit --allow-empty -m "chore: update to Vaultwarden ${{ steps.check.outputs.latest_version }}"
+          fi
+
+          git push
+
+      - name: Create update notification issue
+        if: steps.check.outputs.update_available == 'true' && steps.check.outputs.update_type == 'version'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Vaultwarden updated to ${{ steps.check.outputs.latest_version }}`,
+              body: `A new version of Vaultwarden has been deployed.\n\n**Version:** ${{ steps.check.outputs.latest_version }}\n**Deployment:** Automatic update triggered\n\nRailway will automatically deploy this update.\n\nPlease verify your instance is working correctly at your Railway URL.`,
+              labels: ['automated-update', 'vaultwarden']
+            })

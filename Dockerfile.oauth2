@@ -1,0 +1,26 @@
+FROM quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+
+# Expose port 80 for Railway
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ping || exit 1
+
+# Start oauth2-proxy with configuration from environment variables
+CMD ["oauth2-proxy", \
+  "--http-address=0.0.0.0:80", \
+  "--upstream=${VAULTWARDEN_URL}", \
+  "--provider=google", \
+  "--client-id=${GOOGLE_CLIENT_ID}", \
+  "--client-secret=${GOOGLE_CLIENT_SECRET}", \
+  "--cookie-secret=${OAUTH2_COOKIE_SECRET}", \
+  "--email-domain=${OAUTH2_EMAIL_DOMAINS:-*}", \
+  "--redirect-url=${DOMAIN}/oauth2/callback", \
+  "--cookie-secure=true", \
+  "--cookie-httponly=true", \
+  "--cookie-samesite=lax", \
+  "--pass-access-token=true", \
+  "--pass-user-headers=true", \
+  "--set-xauthrequest=true", \
+  "--skip-provider-button=false"]

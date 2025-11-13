@@ -1,0 +1,17 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+# Always pull latest image on rebuild
+watchPatterns = ["**"]
+
+[deploy]
+startCommand = "/start.sh"
+healthcheckPath = "/alive"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Auto-deploy settings
+[deploy.triggers]
+# Automatically deploy on git push
+gitPush = true
