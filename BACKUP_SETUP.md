@@ -54,31 +54,27 @@ Complete guide covering:
 
 To enable automated backups, you need to add ONE GitHub secret:
 
-### 1. Get Your DATABASE_URL from Railway
+### 1. Get Your PUBLIC_DATABASE_URL from Railway
 
-**Option A: Via Railway Dashboard**
+**Via Railway Dashboard:**
 1. Go to: https://railway.app/project/your-project/production
-2. Click on your PostgreSQL service
+2. Click on your **PostgreSQL** service
 3. Go to "Variables" tab
-4. Copy the value of `DATABASE_URL`
+4. Copy the value of **`PUBLIC_DATABASE_URL`** (NOT `DATABASE_URL`)
+   - `PUBLIC_DATABASE_URL` uses an external hostname that GitHub Actions can reach
+   - `DATABASE_URL` uses `postgres.railway.internal` which only works inside Railway
 
-**Option B: Via Railway CLI (locally)**
-```bash
-cd ~/pasman/vaultwarden-railway
-railway variables | grep DATABASE_URL
-```
-
-### 2. Add Secret to GitHub
+### 2. Update GitHub Secret
 
 Go to: https://github.com/SnickerSec/vaultwarden-railway/settings/secrets/actions
 
-Click "New repository secret" and add:
+Update the `DATABASE_URL` secret:
+1. Click on `DATABASE_URL`
+2. Click "Update secret"
+3. Replace the value with your **`PUBLIC_DATABASE_URL`** from Railway
+4. Click "Update secret"
 
-| Secret Name | Value |
-|-------------|-------|
-| `DATABASE_URL` | Your PostgreSQL connection string from Railway (starts with `postgresql://`) |
-
-**Important:** This is sensitive data - never commit it to the repository!
+**Important:** Use `PUBLIC_DATABASE_URL` value - it has an external hostname like `postgres-...-production.up.railway.app`
 
 ### 3. Test the Setup
 
