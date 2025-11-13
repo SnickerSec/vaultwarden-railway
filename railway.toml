@@ -5,7 +5,6 @@ dockerfilePath = "Dockerfile"
 watchPatterns = ["**"]
 
 [deploy]
-startCommand = "/start.sh"
 healthcheckPath = "/alive"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
