@@ -160,7 +160,7 @@ Add an extra layer of security by requiring Google authentication before accessi
 1. Google OAuth (controls who can see the login page)
 2. Vaultwarden master password (protects your vault)
 
-See **[GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)** for detailed setup instructions.
+See **[GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md)** for detailed setup instructions.
 
 **Note:** This may interfere with Bitwarden mobile apps. Best for web-only access or advanced users.
 
@@ -198,7 +198,7 @@ See **[GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)** for detailed setup instruct
 
 ```bash
 # Copy environment file
-cp .env.example .env
+cp config/.env.example .env
 
 # Edit .env with your settings
 nano .env
@@ -221,7 +221,7 @@ This deployment includes automatic update capabilities:
 - **Weekly status reports** for monitoring
 - **Manual version checking** with included scripts
 
-For detailed information on updates, see **[UPDATES.md](UPDATES.md)**
+For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 
 ### Quick Version Check
 
@@ -235,8 +235,10 @@ For detailed information on updates, see **[UPDATES.md](UPDATES.md)**
 - [Vaultwarden Wiki](https://github.com/dani-garcia/vaultwarden/wiki)
 - [Bitwarden Help Center](https://bitwarden.com/help/)
 - [Railway Documentation](https://docs.railway.app/)
-- [Update Guide](UPDATES.md) - Automatic update documentation
-- [Deployment Guide](DEPLOY.md) - Detailed Railway setup
+- [Update Guide](docs/UPDATES.md) - Automatic update documentation
+- [Deployment Guide](docs/DEPLOY.md) - Detailed Railway setup
+- [Quick Start Guide](docs/QUICK_START.md) - Fast setup walkthrough
+- [Cloudflare Setup](docs/CLOUDFLARE_SETUP.md) - Optional access control
 
 ## License
 
