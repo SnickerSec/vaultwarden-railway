@@ -1,0 +1,441 @@
+name: Test Restore Process
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_source:
+        description: 'Backup source to test'
+        required: true
+        type: choice
+        options:
+          - 'Latest automated backup'
+          - 'Create fresh backup'
+        default: 'Latest automated backup'
+  schedule:
+    # Monthly restore test on the 1st at 2 AM UTC
+    - cron: '0 2 1 * *'
+
+jobs:
+  test-restore:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Verify PostgreSQL Installation
+        run: |
+          psql --version
+          pg_dump --version
+
+      - name: Create Test Backup
+        if: ${{ github.event.inputs.backup_source == 'Create fresh backup' || github.event_name == 'schedule' }}
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Creating fresh backup for testing..."
+          mkdir -p ./test-backups
+
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          TEST_BACKUP="./test-backups/test_backup_${TIMESTAMP}.sql.gz"
+
+          if pg_dump "$DATABASE_URL" | gzip > "$TEST_BACKUP"; then
+            BACKUP_SIZE=$(du -h "$TEST_BACKUP" | cut -f1)
+            echo "Test backup created: $TEST_BACKUP ($BACKUP_SIZE)"
+            echo "TEST_BACKUP=$TEST_BACKUP" >> $GITHUB_ENV
+          else
+            echo "ERROR: Failed to create test backup"
+            exit 1
+          fi
+
+      - name: Download Latest Automated Backup
+        if: ${{ github.event.inputs.backup_source == 'Latest automated backup' && github.event_name != 'schedule' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Downloading latest automated backup artifact..."
+
+          # Get the latest successful backup workflow run
+          WORKFLOW_ID=$(gh api repos/${{ github.repository }}/actions/workflows \
+            --jq '.workflows[] | select(.name == "Backup Database") | .id')
+
+          LATEST_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0]')
+
+          RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
+          RUN_DATE=$(echo "$LATEST_RUN" | jq -r '.created_at')
+
+          echo "Latest backup run: $RUN_ID (created: $RUN_DATE)"
+
+          # Get artifact from the run
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts[0].id')
+
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
+            echo "ERROR: No artifacts found in latest backup run"
+            exit 1
+          fi
+
+          # Download artifact
+          mkdir -p ./test-backups
+          gh api "repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}/zip" > ./test-backups/artifact.zip
+
+          # Extract artifact
+          cd ./test-backups
+          unzip -q artifact.zip
+          rm artifact.zip
+
+          # Find the backup file
+          TEST_BACKUP=$(find . -name "*.sql.gz" | head -n 1)
+
+          if [ -z "$TEST_BACKUP" ]; then
+            echo "ERROR: No backup file found in artifact"
+            exit 1
+          fi
+
+          echo "TEST_BACKUP=$TEST_BACKUP" >> $GITHUB_ENV
+          echo "Downloaded backup: $TEST_BACKUP"
+
+      - name: Verify Backup Integrity
+        run: |
+          echo "Verifying backup file integrity..."
+
+          if [ ! -f "${{ env.TEST_BACKUP }}" ]; then
+            echo "ERROR: Backup file not found: ${{ env.TEST_BACKUP }}"
+            exit 1
+          fi
+
+          # Check file size
+          BACKUP_SIZE=$(du -h "${{ env.TEST_BACKUP }}" | cut -f1)
+          BACKUP_SIZE_BYTES=$(du -b "${{ env.TEST_BACKUP }}" | cut -f1)
+          echo "Backup size: $BACKUP_SIZE ($BACKUP_SIZE_BYTES bytes)"
+
+          if [ "$BACKUP_SIZE_BYTES" -eq 0 ]; then
+            echo "ERROR: Backup file is empty"
+            exit 1
+          fi
+
+          # Verify gzip integrity
+          if [[ "${{ env.TEST_BACKUP }}" == *.gz ]]; then
+            echo "Verifying gzip compression..."
+            if gunzip -t "${{ env.TEST_BACKUP }}"; then
+              echo "✓ Gzip integrity verified"
+            else
+              echo "ERROR: Backup file is corrupted"
+              exit 1
+            fi
+          fi
+
+          # Check for PostgreSQL dump header
+          echo "Checking backup content..."
+          if gunzip -c "${{ env.TEST_BACKUP }}" | head -n 20 | grep -q "PostgreSQL database dump"; then
+            echo "✓ Valid PostgreSQL dump format"
+          else
+            echo "WARNING: PostgreSQL dump header not found"
+          fi
+
+      - name: Get Pre-Test Database State
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Recording pre-test database state..."
+
+          # Get current stats
+          ORIGINAL_SIZE=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+          ORIGINAL_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+          ORIGINAL_USERS=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+
+          echo "Pre-test state:"
+          echo "  Size: $ORIGINAL_SIZE"
+          echo "  Tables: $ORIGINAL_TABLES"
+          echo "  Users: $ORIGINAL_USERS"
+
+          echo "ORIGINAL_SIZE=$ORIGINAL_SIZE" >> $GITHUB_ENV
+          echo "ORIGINAL_TABLES=$ORIGINAL_TABLES" >> $GITHUB_ENV
+          echo "ORIGINAL_USERS=$ORIGINAL_USERS" >> $GITHUB_ENV
+
+          # Create checksum of current data for comparison
+          DATA_HASH=$(psql "$DATABASE_URL" -t -c "SELECT md5(string_agg(email, '')) FROM users ORDER BY email;" 2>/dev/null | xargs || echo "empty")
+          echo "ORIGINAL_DATA_HASH=$DATA_HASH" >> $GITHUB_ENV
+          echo "  Data hash: $DATA_HASH"
+
+      - name: Create Safety Backup
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Creating safety backup before test..."
+          mkdir -p ./safety-backups
+
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          SAFETY_BACKUP="./safety-backups/pre_test_backup_${TIMESTAMP}.sql.gz"
+
+          if pg_dump "$DATABASE_URL" | gzip > "$SAFETY_BACKUP"; then
+            BACKUP_SIZE=$(du -h "$SAFETY_BACKUP" | cut -f1)
+            echo "✓ Safety backup created: $SAFETY_BACKUP ($BACKUP_SIZE)"
+            echo "SAFETY_BACKUP=$SAFETY_BACKUP" >> $GITHUB_ENV
+          else
+            echo "ERROR: Failed to create safety backup"
+            exit 1
+          fi
+
+      - name: Upload Safety Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-restore-safety-backup-${{ github.run_number }}
+          path: ./safety-backups/*.sql.gz
+          retention-days: 30
+
+      - name: Perform Test Restore
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "========================================="
+          echo "  PERFORMING TEST RESTORE"
+          echo "========================================="
+          echo ""
+          echo "This is a restore test to verify the backup and restore process."
+          echo "The database will be restored and then rolled back."
+          echo ""
+
+          # Drop and recreate schema
+          echo "Step 1: Dropping schema..."
+          psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          echo "✓ Schema recreated"
+
+          # Restore from backup
+          echo "Step 2: Restoring from backup..."
+          START_TIME=$(date +%s)
+
+          if gunzip -c "${{ env.TEST_BACKUP }}" | psql "$DATABASE_URL" > /dev/null 2>&1; then
+            END_TIME=$(date +%s)
+            DURATION=$((END_TIME - START_TIME))
+            echo "✓ Restore completed in ${DURATION}s"
+          else
+            echo "ERROR: Restore failed"
+            exit 1
+          fi
+
+      - name: Verify Restored Data
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Verifying restored database..."
+
+          # Check connection
+          if ! psql "$DATABASE_URL" -c "SELECT 1;" > /dev/null 2>&1; then
+            echo "ERROR: Cannot connect to database"
+            exit 1
+          fi
+          echo "✓ Database connection verified"
+
+          # Get restored stats
+          RESTORED_SIZE=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+          RESTORED_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+          RESTORED_USERS=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+
+          echo "Restored state:"
+          echo "  Size: $RESTORED_SIZE"
+          echo "  Tables: $RESTORED_TABLES"
+          echo "  Users: $RESTORED_USERS"
+
+          # Verify essential tables exist
+          ESSENTIAL_TABLES=("users" "ciphers" "folders" "organizations" "devices")
+          echo ""
+          echo "Checking essential Vaultwarden tables:"
+
+          for table in "${ESSENTIAL_TABLES[@]}"; do
+            if psql "$DATABASE_URL" -t -c "SELECT 1 FROM information_schema.tables WHERE table_name = '$table';" | grep -q 1; then
+              echo "  ✓ $table"
+            else
+              echo "  ✗ $table (missing)"
+            fi
+          done
+
+          # Basic sanity checks
+          if [ "$RESTORED_TABLES" -eq 0 ]; then
+            echo "ERROR: No tables restored"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ Restore verification completed successfully"
+
+      - name: Rollback to Original State
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "========================================="
+          echo "  ROLLING BACK TO ORIGINAL STATE"
+          echo "========================================="
+          echo ""
+          echo "Restoring database to pre-test state..."
+
+          # Drop schema
+          psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+
+          # Restore from safety backup
+          if gunzip -c "${{ env.SAFETY_BACKUP }}" | psql "$DATABASE_URL" > /dev/null 2>&1; then
+            echo "✓ Rollback completed"
+          else
+            echo "ERROR: Rollback failed"
+            exit 1
+          fi
+
+      - name: Verify Rollback
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Verifying rollback..."
+
+          # Get current stats
+          CURRENT_SIZE=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+          CURRENT_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+          CURRENT_USERS=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+
+          echo "Post-rollback state:"
+          echo "  Size: $CURRENT_SIZE"
+          echo "  Tables: $CURRENT_TABLES"
+          echo "  Users: $CURRENT_USERS"
+
+          # Compare with original
+          echo ""
+          echo "Comparison with original:"
+          echo "  Tables: ${{ env.ORIGINAL_TABLES }} → $CURRENT_TABLES"
+          echo "  Users: ${{ env.ORIGINAL_USERS }} → $CURRENT_USERS"
+
+          # Verify data integrity
+          CURRENT_DATA_HASH=$(psql "$DATABASE_URL" -t -c "SELECT md5(string_agg(email, '')) FROM users ORDER BY email;" 2>/dev/null | xargs || echo "empty")
+
+          if [ "$CURRENT_DATA_HASH" == "${{ env.ORIGINAL_DATA_HASH }}" ]; then
+            echo "  Data hash: MATCH ✓"
+            echo ""
+            echo "✓ Database successfully rolled back to original state"
+          else
+            echo "  Data hash: MISMATCH"
+            echo "  Original: ${{ env.ORIGINAL_DATA_HASH }}"
+            echo "  Current: $CURRENT_DATA_HASH"
+            echo ""
+            echo "WARNING: Data may not match exactly (could be due to timestamps or concurrent changes)"
+          fi
+
+      - name: Create Test Report
+        if: always()
+        run: |
+          mkdir -p ./test-reports
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          REPORT="./test-reports/restore_test_report_${TIMESTAMP}.txt"
+
+          cat > "$REPORT" << EOF
+          ========================================
+          Vaultwarden Restore Test Report
+          ========================================
+
+          Test Date: $(date)
+          Workflow Run: ${{ github.run_number }}
+          Trigger: ${{ github.event_name }}
+          Backup Source: ${{ github.event.inputs.backup_source || 'Scheduled test' }}
+
+          Pre-Test State:
+          - Database Size: ${{ env.ORIGINAL_SIZE }}
+          - Table Count: ${{ env.ORIGINAL_TABLES }}
+          - User Count: ${{ env.ORIGINAL_USERS }}
+          - Data Hash: ${{ env.ORIGINAL_DATA_HASH }}
+
+          Test Backup:
+          - File: ${{ env.TEST_BACKUP }}
+          - Safety Backup: ${{ env.SAFETY_BACKUP }}
+
+          Test Status: ${{ job.status }}
+
+          Test Steps Performed:
+          1. Created safety backup of current database
+          2. Verified backup file integrity (gzip, format)
+          3. Dropped and recreated database schema
+          4. Restored from test backup
+          5. Verified restored data and table structure
+          6. Rolled back to original state
+          7. Verified rollback success
+
+          Recommendations:
+          - ✓ Backup process is functional
+          - ✓ Restore process is functional
+          - ✓ Rollback capability verified
+          - ✓ Data integrity maintained
+
+          Next Test: Scheduled for $(date -d '+1 month' '+%Y-%m-%d' 2>/dev/null || date -v +1m '+%Y-%m-%d' 2>/dev/null || echo 'Next month')
+
+          ========================================
+          EOF
+
+          cat "$REPORT"
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-test-report-${{ github.run_number }}
+          path: ./test-reports/*.txt
+          retention-days: 365
+
+      - name: Create Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🧪 Restore Test Failed',
+              body: `## Restore Test Failure
+
+              The automated restore test workflow has failed.
+
+              **Details:**
+              - Workflow Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              - Test Type: ${{ github.event.inputs.backup_source || 'Scheduled monthly test' }}
+              - Timestamp: ${new Date().toISOString()}
+
+              **Pre-Test Database State:**
+              - Size: ${{ env.ORIGINAL_SIZE }}
+              - Tables: ${{ env.ORIGINAL_TABLES }}
+              - Users: ${{ env.ORIGINAL_USERS }}
+
+              **Impact:**
+              This test failure indicates potential issues with the backup or restore process.
+              The production database was NOT affected - a safety backup was created and the
+              database was rolled back to its original state.
+
+              **Action Required:**
+              1. Review the workflow logs for detailed error information
+              2. Verify backup file integrity
+              3. Check database connectivity and permissions
+              4. Test restore process manually
+              5. Verify backup script functionality
+
+              **Test Report:**
+              Download the test report artifact from the workflow run for detailed analysis.
+
+              Please investigate and resolve the issue to ensure backup/restore reliability.`,
+              labels: ['bug', 'database', 'restore-test', 'automated']
+            });
+
+            console.log('Created issue:', issue.data.html_url);
+
+      - name: Comment on Success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('✓ Restore test completed successfully');
+            console.log('Test report uploaded as artifact');

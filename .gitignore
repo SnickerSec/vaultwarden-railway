@@ -1,6 +1,7 @@
 # Environment files
 .env
 .env.local
+monitor/.env
 
 # Data directory
 data/
@@ -8,6 +9,9 @@ vw-data/
 
 # Backups (contains sensitive data)
 backups/
+safety-backups/
+test-backups/
+restore-artifacts/
 *.sql
 *.sql.gz
 *_backup_*.json
@@ -15,6 +19,8 @@ backups/
 # Logs
 *.log
 logs/
+restore-logs/
+verification-logs/
 
 # Secrets and tokens (IMPORTANT)
 .admin-token-backup.txt
@@ -35,3 +41,12 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+monitor/venv/
+monitor/*.egg-info/

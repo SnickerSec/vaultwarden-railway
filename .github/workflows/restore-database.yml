@@ -1,0 +1,338 @@
+name: Restore Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_artifact_name:
+        description: 'Name of the backup artifact to restore (e.g., vaultwarden-backup-20250113)'
+        required: true
+        type: string
+      backup_run_id:
+        description: 'GitHub Actions run ID containing the backup artifact'
+        required: true
+        type: string
+      skip_safety_backup:
+        description: 'Skip creating a pre-restore safety backup (not recommended)'
+        required: false
+        type: boolean
+        default: false
+      force_restore:
+        description: 'Force restore without additional confirmations (use with caution)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  restore-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Verify PostgreSQL Installation
+        run: |
+          psql --version
+          pg_dump --version
+
+      - name: Download Backup Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.inputs.backup_artifact_name }}
+          run-id: ${{ github.event.inputs.backup_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./restore-artifacts
+
+      - name: List Downloaded Artifacts
+        run: |
+          echo "Downloaded backup artifacts:"
+          ls -lh ./restore-artifacts/
+
+          # Find the backup file
+          BACKUP_FILE=$(find ./restore-artifacts -name "*.sql.gz" -o -name "*.sql" | head -n 1)
+
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "ERROR: No backup file found in artifact"
+            exit 1
+          fi
+
+          echo "Found backup file: $BACKUP_FILE"
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+
+          # Verify gzip integrity if compressed
+          if [[ "$BACKUP_FILE" == *.gz ]]; then
+            echo "Verifying gzip integrity..."
+            if gunzip -t "$BACKUP_FILE"; then
+              echo "Backup file integrity verified"
+            else
+              echo "ERROR: Backup file is corrupted"
+              exit 1
+            fi
+          fi
+
+      - name: Check Database Connection
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Testing database connection..."
+          if psql "$DATABASE_URL" -c "SELECT version();" > /dev/null 2>&1; then
+            echo "Database connection successful"
+          else
+            echo "ERROR: Cannot connect to database"
+            exit 1
+          fi
+
+      - name: Get Current Database Info
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Gathering current database information..."
+
+          # Get database size
+          DB_SIZE=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+          echo "Current database size: $DB_SIZE"
+
+          # Get table count
+          TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+          echo "Current table count: $TABLE_COUNT"
+
+          # Get user count
+          USER_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+          echo "Current user count: $USER_COUNT"
+
+          echo "DB_SIZE=$DB_SIZE" >> $GITHUB_ENV
+          echo "TABLE_COUNT=$TABLE_COUNT" >> $GITHUB_ENV
+          echo "USER_COUNT=$USER_COUNT" >> $GITHUB_ENV
+
+      - name: Create Pre-Restore Safety Backup
+        if: ${{ github.event.inputs.skip_safety_backup != 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Creating pre-restore safety backup..."
+          mkdir -p ./safety-backups
+
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          SAFETY_BACKUP="./safety-backups/pre_restore_backup_${TIMESTAMP}.sql.gz"
+
+          if pg_dump "$DATABASE_URL" | gzip > "$SAFETY_BACKUP"; then
+            BACKUP_SIZE=$(du -h "$SAFETY_BACKUP" | cut -f1)
+            echo "Safety backup created: $SAFETY_BACKUP ($BACKUP_SIZE)"
+            echo "SAFETY_BACKUP=$SAFETY_BACKUP" >> $GITHUB_ENV
+          else
+            echo "ERROR: Failed to create safety backup"
+            exit 1
+          fi
+
+      - name: Upload Safety Backup
+        if: ${{ github.event.inputs.skip_safety_backup != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-restore-safety-backup-${{ github.run_number }}
+          path: ./safety-backups/*.sql.gz
+          retention-days: 30
+
+      - name: Restore Database Warning
+        run: |
+          echo "========================================="
+          echo "  WARNING: DATABASE RESTORE"
+          echo "========================================="
+          echo ""
+          echo "This will PERMANENTLY DELETE all existing data!"
+          echo ""
+          echo "Current database stats:"
+          echo "  - Size: ${{ env.DB_SIZE }}"
+          echo "  - Tables: ${{ env.TABLE_COUNT }}"
+          echo "  - Users: ${{ env.USER_COUNT }}"
+          echo ""
+          echo "Backup to restore: ${{ env.BACKUP_FILE }}"
+          echo ""
+          if [ "${{ github.event.inputs.skip_safety_backup }}" != "true" ]; then
+            echo "Safety backup: ${{ env.SAFETY_BACKUP }}"
+          else
+            echo "Safety backup: SKIPPED (not recommended!)"
+          fi
+          echo ""
+          echo "========================================="
+
+      - name: Drop and Recreate Schema
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Dropping existing schema and recreating..."
+          psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          echo "Schema recreated successfully"
+
+      - name: Perform Database Restore
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Starting database restore..."
+          START_TIME=$(date +%s)
+
+          # Restore based on file type
+          if [[ "${{ env.BACKUP_FILE }}" == *.gz ]]; then
+            echo "Restoring from gzipped backup..."
+            gunzip -c "${{ env.BACKUP_FILE }}" | psql "$DATABASE_URL"
+          else
+            echo "Restoring from uncompressed backup..."
+            psql "$DATABASE_URL" < "${{ env.BACKUP_FILE }}"
+          fi
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo "Database restored successfully in ${DURATION}s"
+
+      - name: Verify Restore
+        env:
+          DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+        run: |
+          echo "Verifying restore integrity..."
+
+          # Check database connection
+          if ! psql "$DATABASE_URL" -c "SELECT 1;" > /dev/null 2>&1; then
+            echo "ERROR: Cannot connect to database after restore"
+            exit 1
+          fi
+          echo "Database connection verified"
+
+          # Get post-restore statistics
+          RESTORED_TABLE_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+          echo "Restored table count: $RESTORED_TABLE_COUNT"
+
+          if [ "$RESTORED_TABLE_COUNT" -eq 0 ]; then
+            echo "WARNING: No tables found after restore"
+            exit 1
+          fi
+
+          # Check users table
+          RESTORED_USER_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+          echo "Restored user count: $RESTORED_USER_COUNT"
+
+          # Get restored database size
+          RESTORED_DB_SIZE=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+          echo "Restored database size: $RESTORED_DB_SIZE"
+
+          echo ""
+          echo "========================================="
+          echo "  RESTORE VERIFICATION COMPLETE"
+          echo "========================================="
+          echo "Tables: $RESTORED_TABLE_COUNT"
+          echo "Users: $RESTORED_USER_COUNT"
+          echo "Size: $RESTORED_DB_SIZE"
+          echo "========================================="
+
+      - name: Create Restore Summary
+        if: always()
+        run: |
+          mkdir -p ./restore-logs
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          RESTORE_LOG="./restore-logs/restore_summary_${TIMESTAMP}.txt"
+
+          cat > "$RESTORE_LOG" << EOF
+          ========================================
+          Vaultwarden Database Restore Summary
+          ========================================
+
+          Restore Date: $(date)
+          Workflow Run: ${{ github.run_number }}
+          Triggered By: ${{ github.actor }}
+
+          Backup Information:
+          - Artifact: ${{ github.event.inputs.backup_artifact_name }}
+          - Run ID: ${{ github.event.inputs.backup_run_id }}
+          - File: ${{ env.BACKUP_FILE }}
+
+          Pre-Restore State:
+          - Database Size: ${{ env.DB_SIZE }}
+          - Table Count: ${{ env.TABLE_COUNT }}
+          - User Count: ${{ env.USER_COUNT }}
+
+          Restore Options:
+          - Skip Safety Backup: ${{ github.event.inputs.skip_safety_backup }}
+          - Force Restore: ${{ github.event.inputs.force_restore }}
+
+          Safety Backup:
+          - Location: ${{ env.SAFETY_BACKUP || 'SKIPPED' }}
+
+          Status: ${{ job.status }}
+
+          Next Steps:
+          1. Test Vaultwarden application access
+          2. Verify user login functionality
+          3. Check vault data integrity
+          4. Monitor application logs for errors
+
+          Rollback Instructions:
+          To restore the pre-restore backup:
+          1. Go to Actions tab
+          2. Find workflow run ${{ github.run_number }}
+          3. Download artifact: pre-restore-safety-backup-${{ github.run_number }}
+          4. Run restore workflow with that backup
+
+          ========================================
+          EOF
+
+          cat "$RESTORE_LOG"
+
+      - name: Upload Restore Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-log-${{ github.run_number }}
+          path: ./restore-logs/*.txt
+          retention-days: 90
+
+      - name: Create Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Database Restore Failed',
+              body: `## Database Restore Failure
+
+              The automated database restore workflow has failed.
+
+              **Details:**
+              - Workflow Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              - Backup Artifact: ${{ github.event.inputs.backup_artifact_name }}
+              - Backup Run ID: ${{ github.event.inputs.backup_run_id }}
+              - Triggered By: @${{ github.actor }}
+              - Timestamp: ${new Date().toISOString()}
+
+              **Pre-Restore State:**
+              - Database Size: ${{ env.DB_SIZE }}
+              - Table Count: ${{ env.TABLE_COUNT }}
+              - User Count: ${{ env.USER_COUNT }}
+
+              **Action Required:**
+              1. Review the workflow logs for detailed error information
+              2. Verify database connectivity and credentials
+              3. Check backup file integrity
+              4. Ensure sufficient storage space
+              5. Review pre-restore safety backup if available
+
+              **Rollback Available:**
+              ${
+                '${{ github.event.inputs.skip_safety_backup }}' !== 'true'
+                  ? 'A pre-restore safety backup was created and can be used for rollback.'
+                  : '⚠️ No safety backup was created (skipped by user).'
+              }
+
+              Please investigate and resolve the issue before attempting another restore.`,
+              labels: ['bug', 'database', 'restore', 'automated']
+            });
+
+            console.log('Created issue:', issue.data.html_url);

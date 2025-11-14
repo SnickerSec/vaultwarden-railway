@@ -271,11 +271,76 @@ For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
 ./scripts/check-version.sh
 ```
 
+## Backup and Restore
+
+This deployment includes a comprehensive automated backup and restore system.
+
+### Quick Backup
+
+**Automated backups run daily at 3 AM UTC** (configured in GitHub Actions).
+
+**Manual backup:**
+```bash
+./scripts/backup-vault.sh
+```
+
+### Quick Restore
+
+```bash
+# List available backups
+./scripts/verify-backup.sh --list
+
+# Restore from backup (with safety checks)
+./scripts/restore-vault.sh backups/vaultwarden_db_backup_20250113_030000.sql.gz
+
+# Verify backup integrity
+./scripts/verify-backup.sh backups/backup.sql.gz --deep
+```
+
+### Backup Features
+
+- Automated daily backups via GitHub Actions
+- Manual backup script for on-demand backups
+- Backup verification tools
+- Monthly automated restore testing
+- Pre-restore safety backups
+- Comprehensive rollback procedures
+- 90-day retention on GitHub, 30-day local cleanup
+
+### Monitoring Dashboard
+
+A web-based monitoring dashboard is available for managing backups and restores via a user-friendly interface.
+
+**Features:**
+- Real-time system status monitoring
+- One-click backup creation
+- Visual backup management
+- Point-and-click restore functionality
+- Log viewer
+- Secure password authentication
+
+**Quick Setup:**
+```bash
+cd monitor
+./setup.sh
+source venv/bin/activate
+python app.py
+# Open http://localhost:5000
+```
+
+See **[MONITORING.md](docs/MONITORING.md)** for complete documentation.
+
+### Documentation
+
+- **[MONITORING.md](docs/MONITORING.md)** - Web dashboard for backup management
+- **[BACKUP.md](docs/BACKUP.md)** - Complete backup procedures and strategies
+- **[RESTORE.md](docs/RESTORE.md)** - Comprehensive restore guide and troubleshooting
+
 ## Repository Structure
 
 ```
 vaultwarden-railway/
-├── .github/workflows/      # GitHub Actions (backups, updates)
+├── .github/workflows/      # GitHub Actions (backups, updates, restore)
 ├── archive/                # Archived/unused files
 ├── config/                 # Configuration files and examples
 ├── docs/                   # Complete documentation
@@ -285,9 +350,19 @@ vaultwarden-railway/
 │   ├── RATE_LIMITING.md   # Rate limiting setup
 │   ├── EMAIL_SETUP.md     # SMTP configuration
 │   ├── BACKUP.md          # Backup procedures
+│   ├── RESTORE.md         # Restore procedures
+│   ├── MONITORING.md      # Web dashboard guide
 │   └── ...                # More guides
+├── monitor/                # Monitoring dashboard
+│   ├── app.py             # Flask application
+│   ├── templates/         # Dashboard UI
+│   ├── Dockerfile         # Docker config
+│   ├── requirements.txt   # Python dependencies
+│   └── setup.sh           # Setup script
 ├── scripts/                # Utility scripts
 │   ├── backup-vault.sh    # Database backup
+│   ├── restore-vault.sh   # Database restore
+│   ├── verify-backup.sh   # Backup verification
 │   ├── setup-rate-limiting.sh
 │   └── check-version.sh
 ├── Dockerfile              # Main Docker configuration

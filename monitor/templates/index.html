@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vaultwarden Backup Monitor</title>
+    <style>
+        :root {
+            --primary-color: #175ddc;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: var(--card-bg);
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .stat-item {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-success { background: var(--success-color); }
+        .status-warning { background: var(--warning-color); }
+        .status-danger { background: var(--danger-color); }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e40af;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .backup-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .backup-item {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .backup-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary-color);
+        }
+
+        .backup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .backup-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-color);
+        }
+
+        .backup-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .backup-actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .log-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .log-preview {
+            color: var(--text-muted);
+            font-family: monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            margin-top: 5px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-checkbox input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--success-color);
+            color: var(--success-color);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: var(--warning-color);
+            color: var(--warning-color);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .backup-info {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .backup-actions {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ Vaultwarden Backup Monitor</h1>
+            <p class="subtitle">Monitor, create, and restore backups for your Vaultwarden instance</p>
+        </header>
+
+        <div id="alerts"></div>
+
+        <!-- System Status -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">System Status</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="refreshStatus()">
+                        <span id="refresh-icon">🔄</span> Refresh
+                    </button>
+                </div>
+                <div id="system-status" class="loading">
+                    <div class="spinner"></div>
+                    <span style="margin-left: 10px;">Loading...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Quick Actions</h2>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="showCreateBackupModal()">
+                        ➕ Create Backup
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshBackups()">
+                        📋 Refresh List
+                    </button>
+                </div>
+                <div style="margin-top: 15px; padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; font-size: 13px; color: var(--text-muted);">
+                    <strong>Note:</strong> Backup and restore operations require admin authentication.
+                </div>
+            </div>
+        </div>
+
+        <!-- Backups List -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Available Backups</h2>
+                <span id="backup-count" class="subtitle">0 backups</span>
+            </div>
+            <div id="backups-list" class="loading">
+                <div class="spinner"></div>
+                <span style="margin-left: 10px;">Loading backups...</span>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Restore Logs</h2>
+                </div>
+                <div id="restore-logs" class="loading">
+                    <div class="spinner"></div>
+                    <span style="margin-left: 10px;">Loading logs...</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Verification Logs</h2>
+                </div>
+                <div id="verification-logs" class="loading">
+                    <div class="spinner"></div>
+                    <span style="margin-left: 10px;">Loading logs...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Backup Modal -->
+    <div id="create-backup-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Backup</h3>
+                <p class="subtitle">This will create a new database backup</p>
+            </div>
+            <form id="create-backup-form">
+                <div class="form-group">
+                    <label class="form-label" for="backup-password">Admin Password</label>
+                    <input type="password" id="backup-password" class="form-input" required placeholder="Enter admin password">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('create-backup-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <span id="create-backup-spinner"></span>
+                        Create Backup
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Restore Backup Modal -->
+    <div id="restore-backup-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Restore Backup</h3>
+                <p class="subtitle" id="restore-backup-name">Selected backup</p>
+            </div>
+            <form id="restore-backup-form">
+                <div class="alert alert-warning">
+                    <strong>⚠️ Warning:</strong> This will REPLACE all current data with the backup. A safety backup will be created first.
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="restore-password">Admin Password</label>
+                    <input type="password" id="restore-password" class="form-input" required placeholder="Enter admin password">
+                </div>
+                <div class="form-group">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="restore-skip-backup">
+                        <span>Skip safety backup (not recommended)</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="restore-force">
+                        <span>Force restore (skip confirmations)</span>
+                    </label>
+                </div>
+                <input type="hidden" id="restore-backup-path">
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('restore-backup-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <span id="restore-backup-spinner"></span>
+                        Restore Backup
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentBackups = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStatus();
+            refreshBackups();
+            refreshLogs();
+
+            // Auto-refresh every 30 seconds
+            setInterval(refreshStatus, 30000);
+        });
+
+        // Form submissions
+        document.getElementById('create-backup-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            createBackup();
+        });
+
+        document.getElementById('restore-backup-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            restoreBackup();
+        });
+
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderSystemStatus(data.data);
+                } else {
+                    showAlert('Error loading status: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading status: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshBackups() {
+            document.getElementById('backups-list').innerHTML = '<div class="loading"><div class="spinner"></div><span style="margin-left: 10px;">Loading backups...</span></div>';
+
+            try {
+                const response = await fetch('/api/backups');
+                const data = await response.json();
+
+                if (data.success) {
+                    currentBackups = data.data;
+                    renderBackups(data.data);
+                } else {
+                    showAlert('Error loading backups: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading backups: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshLogs() {
+            // Restore logs
+            try {
+                const response = await fetch('/api/logs/restore');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderLogs(data.data, 'restore-logs');
+                }
+            } catch (error) {
+                console.error('Error loading restore logs:', error);
+            }
+
+            // Verification logs
+            try {
+                const response = await fetch('/api/logs/verification');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderLogs(data.data, 'verification-logs');
+                }
+            } catch (error) {
+                console.error('Error loading verification logs:', error);
+            }
+        }
+
+        function renderSystemStatus(status) {
+            const container = document.getElementById('system-status');
+
+            const railwayStatus = status.railway_cli_installed ? 'success' : 'danger';
+            const psqlStatus = status.psql_installed ? 'success' : 'danger';
+
+            container.innerHTML = `
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Backups</div>
+                        <div class="stat-value">${status.backup_count}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Size</div>
+                        <div class="stat-value">${status.total_backup_size_human}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Railway CLI</div>
+                        <div class="stat-value">
+                            <span class="status-indicator status-${railwayStatus}"></span>
+                            ${status.railway_cli_installed ? 'Installed' : 'Missing'}
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">PostgreSQL</div>
+                        <div class="stat-value">
+                            <span class="status-indicator status-${psqlStatus}"></span>
+                            ${status.psql_installed ? 'Installed' : 'Missing'}
+                        </div>
+                    </div>
+                </div>
+                ${status.latest_backup ? `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                        <div class="stat-label">Latest Backup</div>
+                        <div style="font-size: 14px; margin-top: 5px;">
+                            ${status.latest_backup.name}<br>
+                            <span style="color: var(--text-muted); font-size: 12px;">
+                                ${status.latest_backup.modified_ago} • ${status.latest_backup.size_human}
+                            </span>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function renderBackups(backups) {
+            const container = document.getElementById('backups-list');
+            const countEl = document.getElementById('backup-count');
+
+            countEl.textContent = `${backups.length} backup${backups.length !== 1 ? 's' : ''}`;
+
+            if (backups.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <p>No backups found</p>
+                        <p style="font-size: 14px; margin-top: 10px;">Create your first backup using the button above</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="backup-list">
+                    ${backups.map(backup => `
+                        <div class="backup-item">
+                            <div class="backup-header">
+                                <div class="backup-name">${backup.name}</div>
+                            </div>
+                            <div class="backup-info">
+                                <div>📅 ${backup.modified_ago}</div>
+                                <div>💾 ${backup.size_human}</div>
+                                <div>🔒 ${backup.permissions}</div>
+                            </div>
+                            <div class="backup-actions">
+                                <button class="btn btn-primary" onclick="verifyBackup('${backup.path}')">
+                                    ✓ Verify
+                                </button>
+                                <button class="btn btn-danger" onclick="showRestoreModal('${backup.path}', '${backup.name}')">
+                                    ↻ Restore
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderLogs(logs, containerId) {
+            const container = document.getElementById(containerId);
+
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No logs available</p></div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="log-list">
+                    ${logs.map(log => `
+                        <div class="log-item">
+                            <div class="log-header">
+                                <span>${log.name}</span>
+                                <span style="color: var(--text-muted);">${log.modified_ago}</span>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-muted);">
+                                ${log.size_human}
+                            </div>
+                            ${log.preview ? `<div class="log-preview">${escapeHtml(log.preview)}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function createBackup() {
+            const password = document.getElementById('backup-password').value;
+            const spinner = document.getElementById('create-backup-spinner');
+            const submitBtn = document.querySelector('#create-backup-form button[type="submit"]');
+
+            spinner.innerHTML = '<div class="spinner"></div>';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/backups/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Backup created successfully!', 'success');
+                    closeModal('create-backup-modal');
+                    refreshBackups();
+                    refreshStatus();
+                    document.getElementById('backup-password').value = '';
+                } else {
+                    showAlert('Error creating backup: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error creating backup: ' + error.message, 'error');
+            } finally {
+                spinner.innerHTML = '';
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function verifyBackup(backupPath) {
+            showAlert('Verifying backup...', 'warning');
+
+            try {
+                const response = await fetch('/api/backups/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ backup_path: backupPath })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Backup verification successful!', 'success');
+                } else {
+                    showAlert('Backup verification failed: ' + data.error, 'error');
+                }
+
+                refreshLogs();
+            } catch (error) {
+                showAlert('Error verifying backup: ' + error.message, 'error');
+            }
+        }
+
+        async function restoreBackup() {
+            const password = document.getElementById('restore-password').value;
+            const backupPath = document.getElementById('restore-backup-path').value;
+            const skipBackup = document.getElementById('restore-skip-backup').checked;
+            const force = document.getElementById('restore-force').checked;
+            const spinner = document.getElementById('restore-backup-spinner');
+            const submitBtn = document.querySelector('#restore-backup-form button[type="submit"]');
+
+            if (!confirm('Are you ABSOLUTELY SURE you want to restore this backup? This will REPLACE all current data!')) {
+                return;
+            }
+
+            spinner.innerHTML = '<div class="spinner"></div>';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/backups/restore', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        password,
+                        backup_path: backupPath,
+                        skip_backup: skipBackup,
+                        force: force
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Restore completed successfully!', 'success');
+                    closeModal('restore-backup-modal');
+                    refreshBackups();
+                    refreshStatus();
+                    refreshLogs();
+                    document.getElementById('restore-password').value = '';
+                } else {
+                    showAlert('Error restoring backup: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error restoring backup: ' + error.message, 'error');
+            } finally {
+                spinner.innerHTML = '';
+                submitBtn.disabled = false;
+            }
+        }
+
+        function showCreateBackupModal() {
+            document.getElementById('create-backup-modal').classList.add('active');
+        }
+
+        function showRestoreModal(backupPath, backupName) {
+            document.getElementById('restore-backup-path').value = backupPath;
+            document.getElementById('restore-backup-name').textContent = backupName;
+            document.getElementById('restore-backup-modal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function showAlert(message, type) {
+            const alertsContainer = document.getElementById('alerts');
+            const alertClass = type === 'success' ? 'alert-success' : type === 'warning' ? 'alert-warning' : 'alert-error';
+
+            const alert = document.createElement('div');
+            alert.className = `alert ${alertClass}`;
+            alert.textContent = message;
+
+            alertsContainer.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modals on outside click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal(modal.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

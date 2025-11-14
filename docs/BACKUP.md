@@ -422,8 +422,27 @@ chmod 700 backups/
 - [ ] Have offline backup copy
 - [ ] Document master password recovery
 
+## Restore Procedures
+
+For detailed information on restoring from backups, see the dedicated [Restore Guide](RESTORE.md).
+
+**Quick Restore:**
+```bash
+./scripts/restore-vault.sh backups/vaultwarden_db_backup_TIMESTAMP.sql.gz
+```
+
+The restore system includes:
+- Automated restore script with safety checks
+- GitHub Actions workflow for web-based restore
+- Backup verification tools
+- Monthly automated restore testing
+- Comprehensive rollback procedures
+
+See [RESTORE.md](RESTORE.md) for complete restore documentation.
+
 ## Resources
 
+- [Restore Guide](RESTORE.md) - Complete restore procedures and troubleshooting
 - [Vaultwarden Backup Wiki](https://github.com/dani-garcia/vaultwarden/wiki/Backing-up-your-vault)
 - [PostgreSQL Backup Guide](https://www.postgresql.org/docs/current/backup.html)
 - [Railway Backup Documentation](https://docs.railway.app/databases/postgresql#backups)
