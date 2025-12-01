@@ -4,6 +4,7 @@ Service layer for backup and system operations.
 
 import os
 import logging
+import requests
 from datetime import datetime
 from pathlib import Path
 
@@ -11,6 +12,68 @@ from config import Config
 from utils import get_file_info, format_bytes, run_command, is_safe_path
 
 logger = logging.getLogger(__name__)
+
+
+def check_vaultwarden_status():
+    """Check if Vaultwarden is online and get version info."""
+    if not Config.VAULTWARDEN_URL:
+        return {
+            'online': False,
+            'version': None,
+            'error': 'VAULTWARDEN_URL not configured'
+        }
+
+    try:
+        # Try to access the /alive endpoint
+        response = requests.get(
+            f"{Config.VAULTWARDEN_URL}/alive",
+            timeout=5,
+            verify=True
+        )
+
+        online = response.status_code == 200
+
+        # Try to get version from API endpoint
+        version_info = None
+        try:
+            # Vaultwarden doesn't have a public version endpoint,
+            # but we can check the root for version info in headers
+            root_response = requests.get(
+                Config.VAULTWARDEN_URL,
+                timeout=5,
+                verify=True
+            )
+            # Check for Server header which might contain version
+            server_header = root_response.headers.get('Server', '')
+            if 'Rocket' in server_header:
+                version_info = 'Rocket (Vaultwarden)'
+        except:
+            pass
+
+        return {
+            'online': online,
+            'version': version_info,
+            'error': None
+        }
+    except requests.exceptions.Timeout:
+        return {
+            'online': False,
+            'version': None,
+            'error': 'Connection timeout'
+        }
+    except requests.exceptions.ConnectionError:
+        return {
+            'online': False,
+            'version': None,
+            'error': 'Connection refused'
+        }
+    except Exception as e:
+        logger.error(f"Error checking Vaultwarden status: {e}")
+        return {
+            'online': False,
+            'version': None,
+            'error': str(e)
+        }
 
 
 def get_backups():
@@ -65,8 +128,12 @@ def get_system_status():
         'oldest_backup': None,
         'railway_cli_installed': False,
         'psql_installed': False,
-        'scripts_exist': {}
+        'scripts_exist': {},
+        'vaultwarden': {}
     }
+
+    # Check Vaultwarden status
+    status['vaultwarden'] = check_vaultwarden_status()
 
     # Calculate total backup size
     for filepath in Config.BACKUP_DIR.glob('*.sql*'):

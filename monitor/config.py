@@ -31,6 +31,9 @@ class Config:
     DEBUG = os.environ.get('MONITOR_DEBUG', 'false').lower() == 'true'
     HOST = '0.0.0.0'
 
+    # Vaultwarden settings
+    VAULTWARDEN_URL = os.environ.get('VAULTWARDEN_URL', '')
+
     # Command whitelist for security
     ALLOWED_COMMANDS = [
         './backup-vault.sh',

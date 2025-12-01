@@ -675,9 +675,23 @@
 
             const railwayStatus = status.railway_cli_installed ? 'success' : 'danger';
             const psqlStatus = status.psql_installed ? 'success' : 'danger';
+            const vaultwardenStatus = status.vaultwarden?.online ? 'success' : 'danger';
 
             container.innerHTML = `
                 <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Vaultwarden</div>
+                        <div class="stat-value">
+                            <span class="status-indicator status-${vaultwardenStatus}"></span>
+                            ${status.vaultwarden?.online ? 'Online' : 'Offline'}
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Version</div>
+                        <div class="stat-value" style="font-size: 16px;">
+                            ${status.vaultwarden?.version || 'Unknown'}
+                        </div>
+                    </div>
                     <div class="stat-item">
                         <div class="stat-label">Total Backups</div>
                         <div class="stat-value">${status.backup_count}</div>
