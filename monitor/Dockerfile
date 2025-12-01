@@ -23,21 +23,21 @@ RUN curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.s
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY monitor/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY monitor/*.py .
-COPY monitor/templates/ templates/
+COPY *.py .
+COPY templates/ templates/
 
-# Copy backup scripts from monitor directory
-COPY monitor/scripts/backup-vault.sh /scripts/
-COPY monitor/scripts/restore-vault.sh /scripts/
-COPY monitor/scripts/verify-backup.sh /scripts/
+# Copy backup scripts
+COPY scripts/backup-vault.sh /scripts/
+COPY scripts/restore-vault.sh /scripts/
+COPY scripts/verify-backup.sh /scripts/
 
 # Copy lib directory files
 RUN mkdir -p /scripts/lib
-COPY monitor/scripts/lib/*.sh /scripts/lib/
+COPY scripts/lib/*.sh /scripts/lib/
 
 # Make scripts executable
 RUN chmod +x /scripts/*.sh /scripts/lib/*.sh
