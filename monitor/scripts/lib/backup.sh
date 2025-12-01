@@ -69,7 +69,6 @@ create_database_backup() {
         if pg_dump "$DATABASE_URL" > "$output_file" 2>"$error_file"; then
             echo "[SUCCESS] Database backup created: $output_file"
             rm -f "$error_file"
-            echo "$output_file"
             return 0
         else
             local exit_code=$?
@@ -130,12 +129,11 @@ compress_backup() {
     print_info "Compressing backup..."
 
     if gzip "$backup_file" 2>&1; then
-        print_success "Backup compressed: ${backup_file}.gz"
-        echo "${backup_file}.gz"
+        echo "[SUCCESS] Backup compressed: ${backup_file}.gz"
         return 0
     else
         local exit_code=$?
-        print_error "Compression failed with exit code: $exit_code"
+        echo "[ERROR] Compression failed with exit code: $exit_code"
         return 1
     fi
 }
