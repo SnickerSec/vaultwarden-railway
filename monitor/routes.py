@@ -40,6 +40,19 @@ def health():
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
 
+@main.route('/debug/config')
+def debug_config():
+    """Debug endpoint to check configuration (remove in production)."""
+    import os
+    return jsonify({
+        'has_password_hash': bool(os.environ.get('MONITOR_PASSWORD_HASH')),
+        'password_hash_length': len(os.environ.get('MONITOR_PASSWORD_HASH', '')),
+        'has_secret_key': bool(os.environ.get('MONITOR_SECRET_KEY')),
+        'port': Config.PORT,
+        'debug': Config.DEBUG
+    })
+
+
 # API routes
 @api.route('/status')
 def api_status():
