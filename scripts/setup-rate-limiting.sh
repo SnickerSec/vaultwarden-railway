@@ -6,48 +6,17 @@
 
 set -e
 
-# Colors
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Source shared library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
-print_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-echo ""
-echo "╔════════════════════════════════════════╗"
-echo "║   Vaultwarden Rate Limiting Setup     ║"
-echo "╚════════════════════════════════════════╝"
-echo ""
+print_banner "Vaultwarden Rate Limiting Setup"
 
 # Check if Railway CLI is installed
-if ! command -v railway &> /dev/null; then
-    print_error "Railway CLI is not installed"
-    echo "Install with: npm install -g @railway/cli"
-    exit 1
-fi
+check_railway_cli || exit 1
 
 # Check if logged in
-if ! railway whoami &> /dev/null; then
-    print_error "Not logged into Railway"
-    echo "Login with: railway login"
-    exit 1
-fi
+check_railway_auth || exit 1
 
 # Security level selection
 echo "Select security level:"
@@ -126,7 +95,7 @@ railway variables --set "LOGIN_RATELIMIT_MAX_BURST=$LOGIN_BURST" \
                   --set "ADMIN_RATELIMIT_SECONDS=$ADMIN_SECONDS" \
                   --set "IP_HEADER=X-Forwarded-For"
 
-if [ $? -eq 0 ]; then
+if [[ $? -eq 0 ]]; then
     print_success "Rate limiting configured!"
 else
     print_error "Failed to set variables"

@@ -1,0 +1,52 @@
+"""
+Configuration management for the Vaultwarden Monitor Dashboard.
+"""
+
+import os
+from pathlib import Path
+from werkzeug.security import generate_password_hash
+
+
+class Config:
+    """Application configuration."""
+
+    # Flask settings
+    SECRET_KEY = os.environ.get('MONITOR_SECRET_KEY', os.urandom(32).hex())
+    JSON_SORT_KEYS = False
+
+    # Directory paths
+    BACKUP_DIR = Path(os.environ.get('BACKUP_DIR', '../backups'))
+    RESTORE_LOG_DIR = Path(os.environ.get('RESTORE_LOG_DIR', '../restore-logs'))
+    VERIFICATION_LOG_DIR = Path(os.environ.get('VERIFICATION_LOG_DIR', '../verification-logs'))
+    SCRIPTS_DIR = Path(os.environ.get('SCRIPTS_DIR', '../scripts'))
+
+    # Authentication
+    ADMIN_PASSWORD_HASH = os.environ.get(
+        'MONITOR_PASSWORD_HASH',
+        generate_password_hash('admin')
+    )
+
+    # Server settings
+    PORT = int(os.environ.get('MONITOR_PORT', 5000))
+    DEBUG = os.environ.get('MONITOR_DEBUG', 'false').lower() == 'true'
+    HOST = '0.0.0.0'
+
+    # Command whitelist for security
+    ALLOWED_COMMANDS = [
+        './backup-vault.sh',
+        './restore-vault.sh',
+        './verify-backup.sh',
+        'which'
+    ]
+
+    # Timeouts
+    DEFAULT_COMMAND_TIMEOUT = 300  # 5 minutes
+    SHORT_COMMAND_TIMEOUT = 5
+    LONG_COMMAND_TIMEOUT = 600  # 10 minutes
+
+
+def ensure_directories():
+    """Ensure all required directories exist."""
+    Config.BACKUP_DIR.mkdir(exist_ok=True, parents=True)
+    Config.RESTORE_LOG_DIR.mkdir(exist_ok=True, parents=True)
+    Config.VERIFICATION_LOG_DIR.mkdir(exist_ok=True, parents=True)

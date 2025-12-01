@@ -1,76 +1,47 @@
 #!/bin/bash
-
-###############################################################################
+#
 # Deploy to Railway - Production Deployment Script
 #
-# This script deploys the entire Vaultwarden system including the monitoring
+# Deploys the entire Vaultwarden system including the monitoring
 # dashboard to Railway.
-###############################################################################
+#
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Source shared library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
-log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
-}
+###############################################################################
+# Main Script
+###############################################################################
 
-success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
-
-error() {
-    echo -e "${RED}✗ ERROR:${NC} $1"
-    exit 1
-}
-
-warning() {
-    echo -e "${YELLOW}⚠ WARNING:${NC} $1"
-}
-
-echo ""
-echo "========================================="
-echo "  Deploy to Railway - Production"
-echo "========================================="
-echo ""
+print_section "Deploy to Railway - Production"
 
 # Step 1: Check Railway CLI
 log "Checking Railway CLI..."
-if ! command -v railway &> /dev/null; then
-    error "Railway CLI is not installed. Install with: npm install -g @railway/cli"
-fi
+check_railway_cli || exit 1
 success "Railway CLI found"
 
 # Step 2: Check authentication
 log "Checking Railway authentication..."
-if ! railway whoami &> /dev/null; then
-    error "Not logged into Railway. Run: railway login"
-fi
+check_railway_auth || exit 1
 RAILWAY_USER=$(railway whoami | head -n 1)
 success "Logged in as: $RAILWAY_USER"
 
 # Step 3: Check project status
 log "Checking project status..."
-if ! railway status &> /dev/null; then
-    error "No Railway project linked. Run: railway link"
-fi
+check_railway_project || exit 1
 PROJECT_INFO=$(railway status)
 success "Project linked"
 echo "$PROJECT_INFO"
 
 # Step 4: Check git status
 log "Checking git repository..."
-if [ ! -d ".git" ]; then
-    error "Not a git repository. Initialize with: git init"
-fi
+check_git_repo || exit 1
 
 # Check for uncommitted changes
-if [ -n "$(git status --porcelain)" ]; then
+if has_uncommitted_changes; then
     warning "You have uncommitted changes"
     echo ""
     git status --short
@@ -85,7 +56,7 @@ if [ -n "$(git status --porcelain)" ]; then
         echo "Enter commit message (or press Enter for default):"
         read COMMIT_MSG
 
-        if [ -z "$COMMIT_MSG" ]; then
+        if [[ -z "$COMMIT_MSG" ]]; then
             COMMIT_MSG="Deploy: Add monitoring dashboard and restore system"
         fi
 
@@ -96,9 +67,7 @@ if [ -n "$(git status --porcelain)" ]; then
 - Created web-based monitoring dashboard
 - Added backup verification tools
 - Implemented monthly restore testing
-- Updated documentation
-
-🤖 Generated with Claude Code"
+- Updated documentation"
 
         success "Changes committed"
     else
@@ -130,11 +99,7 @@ else
 fi
 
 # Step 6: Generate monitoring dashboard password
-echo ""
-echo "========================================="
-echo "  Monitoring Dashboard Setup"
-echo "========================================="
-echo ""
+print_section "Monitoring Dashboard Setup"
 
 log "Setting up monitoring dashboard credentials..."
 echo ""
@@ -145,11 +110,11 @@ echo "Confirm password:"
 read -s MONITOR_PASSWORD_CONFIRM
 echo ""
 
-if [ "$MONITOR_PASSWORD" != "$MONITOR_PASSWORD_CONFIRM" ]; then
+if [[ "$MONITOR_PASSWORD" != "$MONITOR_PASSWORD_CONFIRM" ]]; then
     error "Passwords don't match!"
 fi
 
-if [ ${#MONITOR_PASSWORD} -lt 8 ]; then
+if [[ ${#MONITOR_PASSWORD} -lt 8 ]]; then
     error "Password must be at least 8 characters!"
 fi
 
@@ -157,7 +122,7 @@ fi
 log "Generating secure password hash..."
 MONITOR_PASSWORD_HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$MONITOR_PASSWORD'))" 2>/dev/null || echo "")
 
-if [ -z "$MONITOR_PASSWORD_HASH" ]; then
+if [[ -z "$MONITOR_PASSWORD_HASH" ]]; then
     error "Failed to generate password hash. Install werkzeug: pip install werkzeug"
 fi
 
@@ -171,7 +136,6 @@ success "Secret key generated"
 # Step 7: Get Railway project info
 log "Getting Railway project information..."
 
-# Get project ID and service info
 PROJECT_ID=$(railway status 2>/dev/null | grep -E "Project:" | awk '{print $2}' || echo "")
 SERVICE_NAME=$(railway status 2>/dev/null | grep -E "Service:" | awk '{print $2}' || echo "vaultwarden-railway")
 
@@ -179,15 +143,10 @@ log "Project: $PROJECT_ID"
 log "Service: $SERVICE_NAME"
 
 # Step 8: Set environment variables
-echo ""
-echo "========================================="
-echo "  Configuring Environment Variables"
-echo "========================================="
-echo ""
+print_section "Configuring Environment Variables"
 
 log "Setting monitoring dashboard variables..."
 
-# Set variables for monitoring service
 railway variables set MONITOR_PASSWORD_HASH="$MONITOR_PASSWORD_HASH" || warning "Failed to set MONITOR_PASSWORD_HASH"
 railway variables set MONITOR_SECRET_KEY="$MONITOR_SECRET_KEY" || warning "Failed to set MONITOR_SECRET_KEY"
 railway variables set MONITOR_PORT="5000" || warning "Failed to set MONITOR_PORT"
@@ -196,11 +155,7 @@ railway variables set MONITOR_DEBUG="false" || warning "Failed to set MONITOR_DE
 success "Environment variables configured"
 
 # Step 9: Deploy information
-echo ""
-echo "========================================="
-echo "  Deployment Summary"
-echo "========================================="
-echo ""
+print_section "Deployment Summary"
 
 cat << EOF
 Railway will automatically deploy your changes when you push to GitHub.
@@ -219,7 +174,7 @@ Services to configure in Railway Dashboard:
 
 Next Steps:
 1. Go to Railway Dashboard: https://railway.app/project/$PROJECT_ID
-2. Click "New" → "Empty Service"
+2. Click "New" -> "Empty Service"
 3. Name it "monitor" or "vaultwarden-monitor"
 4. Connect to this GitHub repository
 5. Set root directory to "/monitor"
@@ -235,9 +190,9 @@ Main service variables needed:
 - DATABASE_URL (auto-injected by Railway)
 
 Monitoring service variables (already set):
-- MONITOR_PASSWORD_HASH ✓
-- MONITOR_SECRET_KEY ✓
-- MONITOR_PORT ✓
+- MONITOR_PASSWORD_HASH
+- MONITOR_SECRET_KEY
+- MONITOR_PORT
 - DATABASE_URL (reference from PostgreSQL service)
 EOF
 
@@ -252,7 +207,7 @@ echo "Would you like to open the Railway dashboard? (y/n)"
 read -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if [ -n "$PROJECT_ID" ]; then
+    if [[ -n "$PROJECT_ID" ]]; then
         if command -v xdg-open &> /dev/null; then
             xdg-open "https://railway.app/project/$PROJECT_ID"
         elif command -v open &> /dev/null; then
@@ -265,18 +220,14 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     fi
 fi
 
-echo ""
-echo "========================================="
-echo "  Deployment Instructions"
-echo "========================================="
-echo ""
+print_section "Deployment Instructions"
 
 cat << 'EOF'
 To complete the deployment:
 
 1. Add Monitoring Service in Railway Dashboard:
    - Go to your Railway project
-   - Click "New" → "GitHub Repo" or "Empty Service"
+   - Click "New" -> "GitHub Repo" or "Empty Service"
    - If using GitHub: select this repository
    - If using Empty Service: will deploy from local
    - Set service name: "vaultwarden-monitor"

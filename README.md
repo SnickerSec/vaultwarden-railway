@@ -2,388 +2,131 @@
 
 A lightweight, self-hosted password manager with built-in 2FA/OTP support, ready to deploy on Railway.
 
-**Automatic Updates Enabled** - Always stays up-to-date with the latest Vaultwarden releases!
-
 ## Features
 
 - Full password management with browser extensions and mobile apps
-- Built-in TOTP/2FA authenticator (no need for separate authenticator apps)
+- Built-in TOTP/2FA authenticator
 - End-to-end encryption
 - Bitwarden-compatible (use official Bitwarden apps)
-- Secure password sharing
-- Password generator
-- Auto-fill capabilities
-- Cross-platform support (Windows, macOS, Linux, iOS, Android)
-- Web vault access
-- **Automatic updates** via GitHub Actions (daily version checks)
+- Automatic daily backups with web-based monitoring dashboard
+- Automatic updates via GitHub Actions
 
-## Quick Deploy to Railway
+## Quick Start
 
-### Method 1: Deploy from GitHub (Recommended)
-
-1. **Push this code to a GitHub repository**
-
-2. **Create a new project on Railway**
-   - Go to [railway.app](https://railway.app)
-   - Click "New Project"
-   - Select "Deploy from GitHub repo"
-   - Choose your repository
-
-3. **Configure environment variables**
-   - Go to your project settings
-   - Add these variables:
-     ```
-     DOMAIN=https://your-app.up.railway.app
-     ADMIN_TOKEN=your-secure-random-token-here
-     SIGNUPS_ALLOWED=true
-     WEBSOCKET_ENABLED=true
-     ```
-
-   Generate a secure admin token:
-   ```bash
-   openssl rand -base64 48
-   ```
-
-4. **Add PostgreSQL Database (Optional but recommended)**
-   - Click "New" → "Database" → "Add PostgreSQL"
-   - Railway will automatically inject `DATABASE_URL`
-
-5. **Deploy**
-   - Railway will automatically detect the Dockerfile and deploy
-   - Your app will be available at `https://your-app.up.railway.app`
-
-### Method 2: Railway CLI
+### 1. Deploy to Railway
 
 ```bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login
-railway login
-
-# Initialize project
-railway init
-
-# Add environment variables
-railway variables set DOMAIN=https://your-app.up.railway.app
-railway variables set ADMIN_TOKEN=$(openssl rand -base64 48)
-railway variables set SIGNUPS_ALLOWED=true
-
-# Deploy
-railway up
+# Clone and push to your GitHub
+git clone https://github.com/your-repo/vaultwarden-railway.git
+# Connect to Railway via dashboard or CLI
 ```
 
-## First-Time Setup
+### 2. Configure Environment Variables
 
-1. **Access your instance**
-   - Navigate to your Railway app URL
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DOMAIN` | Yes | Your Railway app URL (e.g., `https://your-app.up.railway.app`) |
+| `ADMIN_TOKEN` | Yes | Admin panel access token |
+| `SIGNUPS_ALLOWED` | No | Allow new registrations (default: `true`) |
+| `DATABASE_URL` | No | PostgreSQL connection (auto-injected by Railway) |
 
-2. **Create your account**
-   - Click "Create Account"
-   - Enter your email and master password
-   - **IMPORTANT**: Save your master password securely - it cannot be recovered!
-
-3. **Disable signups (recommended)**
-   - After creating your account, go to Railway environment variables
-   - Set `SIGNUPS_ALLOWED=false`
-   - Redeploy the service
-
-4. **Access admin panel**
-   - Go to `https://your-app.up.railway.app/admin`
-   - Enter your `ADMIN_TOKEN`
-   - Review settings and user accounts
-
-## Using 2FA/OTP
-
-Vaultwarden includes a built-in TOTP authenticator:
-
-1. In the web vault, go to Settings → Security → Two-step Login
-2. Enable "Authenticator App (TOTP)"
-3. Add 2FA codes for your other accounts in the password entries
-4. Use the "TOTP" field when creating/editing password items
-
-## Client Applications
-
-Download official Bitwarden clients and point them to your instance:
-
-- **Browser Extensions**: Chrome, Firefox, Safari, Edge, Opera
-- **Desktop Apps**: Windows, macOS, Linux
-- **Mobile Apps**: iOS, Android
-- **CLI**: `bw config server https://your-app.up.railway.app`
-
-Download from: https://bitwarden.com/download/
-
-## Environment Variables Reference
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DOMAIN` | Yes | - | Your Railway app URL |
-| `ADMIN_TOKEN` | Yes | - | Admin panel access token |
-| `SIGNUPS_ALLOWED` | No | `true` | Allow new user registrations |
-| `INVITATIONS_ALLOWED` | No | `true` | Allow user invitations |
-| `WEBSOCKET_ENABLED` | No | `true` | Enable real-time sync |
-| `SHOW_PASSWORD_HINT` | No | `false` | Show password hints |
-| `LOG_LEVEL` | No | `info` | Logging level |
-| `DATABASE_URL` | No | SQLite | PostgreSQL connection string |
-
-## Email Configuration (Optional)
-
-For password reset and 2FA recovery emails:
-
+Generate a secure admin token:
 ```bash
-railway variables set SMTP_HOST=smtp.gmail.com
-railway variables set SMTP_FROM=your-email@gmail.com
-railway variables set SMTP_PORT=587
-railway variables set SMTP_SECURITY=starttls
-railway variables set SMTP_USERNAME=your-email@gmail.com
-railway variables set SMTP_PASSWORD=your-app-password
+openssl rand -base64 48
 ```
 
-## Backup Your Data
+### 3. Add PostgreSQL Database
 
-### Automated Daily Backups
+In Railway dashboard: New → Database → Add PostgreSQL
 
-This deployment includes **automated daily database backups**:
+### 4. First-Time Setup
 
-- Runs daily at 3 AM UTC via GitHub Actions
-- PostgreSQL database dumps stored as artifacts
-- 90-day retention in GitHub Actions
-- Automatic notifications on failure
+1. Navigate to your Railway app URL
+2. Create your account
+3. Set `SIGNUPS_ALLOWED=false` after registration
+4. Access admin panel at `/admin`
 
-**Setup:** Add your Railway token to GitHub Secrets as `RAILWAY_TOKEN`
+## Documentation
 
-See **[docs/BACKUP.md](docs/BACKUP.md)** for complete backup and restore procedures.
+| Guide | Description |
+|-------|-------------|
+| [docs/QUICK_START.md](docs/QUICK_START.md) | 10-minute setup guide |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Detailed deployment |
+| [docs/BACKUP.md](docs/BACKUP.md) | Backup configuration |
+| [docs/RESTORE.md](docs/RESTORE.md) | Restore procedures |
+| [docs/MONITORING.md](docs/MONITORING.md) | Web dashboard |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security best practices |
+| [docs/README.md](docs/README.md) | Full documentation index |
 
-### Manual Backup Options
+## Scripts
 
-1. **Backup script** (Quick local backup):
-   ```bash
-   ./scripts/backup-vault.sh
-   ```
-
-2. **Export from web vault**
-   - Go to Tools → Export Vault
-   - Save the encrypted JSON file securely
-
-3. **Railway's database backup features**
-   - Access via Railway dashboard → PostgreSQL → Backups
-
-## Optional: Google OAuth Protection
-
-Add an extra layer of security by requiring Google authentication before accessing Vaultwarden:
-
-**Two-Layer Security:**
-1. Google OAuth (controls who can see the login page)
-2. Vaultwarden master password (protects your vault)
-
-See **[GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md)** for detailed setup instructions.
-
-**Note:** This may interfere with Bitwarden mobile apps. Best for web-only access or advanced users.
-
-## Security Best Practices
-
-1. **Use a strong master password** - This is your only key to decrypt data
-2. **Enable 2FA** on your Vaultwarden account
-3. **Disable signups** after creating your account
-4. **Configure rate limiting** - Protect against brute-force attacks (see below)
-5. **Use HTTPS** - Railway provides this automatically (port 443)
-6. **Backup regularly** - Export your vault periodically
-7. **Keep admin token secret** - Never commit it to version control
-8. **Use PostgreSQL** for production - More reliable than SQLite
-9. **Consider Google OAuth** - Optional extra authentication layer
-
-## Rate Limiting
-
-Protect your instance from brute-force attacks with built-in rate limiting:
-
-**Quick Setup:**
 ```bash
+# Backup database
+./scripts/backup-vault.sh
+
+# Restore from backup
+./scripts/restore-vault.sh backups/backup.sql.gz
+
+# Verify backup integrity
+./scripts/verify-backup.sh --list
+
+# Check for updates
+./scripts/check-version.sh
+
+# Configure rate limiting
 ./scripts/setup-rate-limiting.sh
 ```
 
-This configures:
-- Login attempt limits (default: 10 per minute)
-- Admin panel limits (default: 3 per 5 minutes)
-- Proper IP detection for Railway
-
-**Manual Configuration:**
-Set these variables in Railway dashboard:
-- `LOGIN_RATELIMIT_MAX_BURST=10`
-- `LOGIN_RATELIMIT_SECONDS=60`
-- `ADMIN_RATELIMIT_MAX_BURST=3`
-- `ADMIN_RATELIMIT_SECONDS=300`
-- `IP_HEADER=X-Forwarded-For`
-
-See **[docs/RATE_LIMITING.md](docs/RATE_LIMITING.md)** for detailed configuration options and security levels.
-
-## Troubleshooting
-
-### Cannot access admin panel
-- Ensure `ADMIN_TOKEN` is set correctly
-- Try regenerating the token: `openssl rand -base64 48`
-
-### Cannot create account
-- Check `SIGNUPS_ALLOWED=true`
-- Verify `DOMAIN` is set correctly
-
-### Apps won't connect
-- Ensure `DOMAIN` matches your Railway URL exactly
-- Include `https://` in the domain
-- Check Railway logs for errors
-
-### Data not syncing
-- Enable `WEBSOCKET_ENABLED=true`
-- Check browser console for WebSocket errors
-
-## Local Development
-
-```bash
-# Copy environment file
-cp config/.env.example .env
-
-# Edit .env with your settings
-nano .env
-
-# Run with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Access at http://localhost:80
-```
-
-## Automatic Updates
-
-This deployment includes automatic update capabilities:
-
-- **Daily version checks** via GitHub Actions
-- **Auto-deploy** when new versions are released
-- **Weekly status reports** for monitoring
-- **Manual version checking** with included scripts
-
-For detailed information on updates, see **[UPDATES.md](docs/UPDATES.md)**
-
-### Quick Version Check
-
-```bash
-# Check current vs latest version
-./scripts/check-version.sh
-```
-
-## Backup and Restore
-
-This deployment includes a comprehensive automated backup and restore system.
-
-### Quick Backup
-
-**Automated backups run daily at 3 AM UTC** (configured in GitHub Actions).
-
-**Manual backup:**
-```bash
-./scripts/backup-vault.sh
-```
-
-### Quick Restore
-
-```bash
-# List available backups
-./scripts/verify-backup.sh --list
-
-# Restore from backup (with safety checks)
-./scripts/restore-vault.sh backups/vaultwarden_db_backup_20250113_030000.sql.gz
-
-# Verify backup integrity
-./scripts/verify-backup.sh backups/backup.sql.gz --deep
-```
-
-### Backup Features
-
-- Automated daily backups via GitHub Actions
-- Manual backup script for on-demand backups
-- Backup verification tools
-- Monthly automated restore testing
-- Pre-restore safety backups
-- Comprehensive rollback procedures
-- 90-day retention on GitHub, 30-day local cleanup
-
-### Monitoring Dashboard
-
-A web-based monitoring dashboard is available for managing backups and restores via a user-friendly interface.
-
-**Features:**
-- Real-time system status monitoring
-- One-click backup creation
-- Visual backup management
-- Point-and-click restore functionality
-- Log viewer
-- Secure password authentication
-
-**Quick Setup:**
-```bash
-cd monitor
-./setup.sh
-source venv/bin/activate
-python app.py
-# Open http://localhost:5000
-```
-
-See **[MONITORING.md](docs/MONITORING.md)** for complete documentation.
-
-### Documentation
-
-- **[MONITORING.md](docs/MONITORING.md)** - Web dashboard for backup management
-- **[BACKUP.md](docs/BACKUP.md)** - Complete backup procedures and strategies
-- **[RESTORE.md](docs/RESTORE.md)** - Comprehensive restore guide and troubleshooting
-
-## Repository Structure
+## Project Structure
 
 ```
 vaultwarden-railway/
-├── .github/workflows/      # GitHub Actions (backups, updates, restore)
-├── archive/                # Archived/unused files
-├── config/                 # Configuration files and examples
-├── docs/                   # Complete documentation
-│   ├── QUICK_START.md     # Fast setup guide
-│   ├── DEPLOY.md          # Detailed deployment
-│   ├── SECURITY.md        # Security best practices
-│   ├── RATE_LIMITING.md   # Rate limiting setup
-│   ├── EMAIL_SETUP.md     # SMTP configuration
-│   ├── BACKUP.md          # Backup procedures
-│   ├── RESTORE.md         # Restore procedures
-│   ├── MONITORING.md      # Web dashboard guide
-│   └── ...                # More guides
-├── monitor/                # Monitoring dashboard
-│   ├── app.py             # Flask application
-│   ├── templates/         # Dashboard UI
-│   ├── Dockerfile         # Docker config
-│   ├── requirements.txt   # Python dependencies
-│   └── setup.sh           # Setup script
-├── scripts/                # Utility scripts
-│   ├── backup-vault.sh    # Database backup
-│   ├── restore-vault.sh   # Database restore
-│   ├── verify-backup.sh   # Backup verification
-│   ├── setup-rate-limiting.sh
-│   └── check-version.sh
-├── Dockerfile              # Main Docker configuration
-├── railway.toml            # Railway platform config
-└── README.md               # This file
+├── .github/workflows/   # GitHub Actions (backups, updates)
+├── config/              # Configuration files
+│   ├── examples/        # Environment templates
+│   ├── docker/          # Docker Compose for local dev
+│   └── variants/        # OAuth2 and other variants
+├── docs/                # Documentation
+├── monitor/             # Web monitoring dashboard
+│   ├── app.py           # Flask application
+│   ├── config.py        # Configuration
+│   ├── routes.py        # API routes
+│   ├── services.py      # Business logic
+│   └── utils.py         # Utilities
+├── scripts/             # Utility scripts
+│   ├── lib/             # Shared shell libraries
+│   ├── backup-vault.sh
+│   ├── restore-vault.sh
+│   └── ...
+├── Dockerfile           # Main container
+└── railway.toml         # Railway configuration
 ```
+
+## Security
+
+1. Use a strong master password
+2. Enable 2FA on your account
+3. Disable signups after registration
+4. Configure rate limiting: `./scripts/setup-rate-limiting.sh`
+5. Optional: Add Google OAuth ([docs/GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md))
+
+## Client Applications
+
+Download official Bitwarden clients and configure your server URL:
+
+- **Browser**: Chrome, Firefox, Safari, Edge
+- **Desktop**: Windows, macOS, Linux
+- **Mobile**: iOS, Android
+- **CLI**: `bw config server https://your-app.up.railway.app`
+
+Download: https://bitwarden.com/download/
 
 ## Resources
 
 - [Vaultwarden Wiki](https://github.com/dani-garcia/vaultwarden/wiki)
-- [Bitwarden Help Center](https://bitwarden.com/help/)
-- [Railway Documentation](https://docs.railway.app/)
-- [Documentation Index](docs/README.md) - Complete guide index
+- [Bitwarden Help](https://bitwarden.com/help/)
+- [Railway Docs](https://docs.railway.app/)
 
 ## License
 
 This deployment configuration is provided as-is. Vaultwarden is licensed under GPL-3.0.
-
-## Support
-
-For issues with:
-- Vaultwarden: https://github.com/dani-garcia/vaultwarden/issues
-- Railway: https://help.railway.app/
-- Bitwarden clients: https://bitwarden.com/help/

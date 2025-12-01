@@ -1,10 +1,8 @@
 #!/bin/bash
-
-###############################################################################
+#
 # Vaultwarden Backup Verification Script
 #
-# This script verifies the integrity and validity of backup files.
-# It can check local backups or download and verify GitHub Actions artifacts.
+# Verifies the integrity and validity of backup files.
 #
 # Usage:
 #   ./scripts/verify-backup.sh <backup-file>
@@ -15,22 +13,20 @@
 #   <backup-file>      Path to specific backup file to verify
 #   --list             List all available backups
 #   --all              Verify all backups in the backup directory
-#   --deep             Perform deep verification (restore to temp database)
+#   --deep             Perform deep verification (SQL syntax check)
 #   --fix-permissions  Fix backup file permissions (chmod 600)
-#   -h, --help         Show this help message
-###############################################################################
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Source shared libraries
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/backup.sh"
 
+###############################################################################
 # Configuration
-BACKUP_DIR="./backups"
+###############################################################################
+
 VERIFICATION_LOG_DIR="./verification-logs"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 VERIFICATION_LOG="$VERIFICATION_LOG_DIR/verification_log_$TIMESTAMP.txt"
@@ -42,24 +38,28 @@ LIST_ONLY=false
 VERIFY_ALL=false
 
 ###############################################################################
-# Helper Functions
+# Logging with File Output
 ###############################################################################
 
-log() {
+log_verify() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$VERIFICATION_LOG"
 }
 
-success() {
+success_verify() {
     echo -e "${GREEN}✓${NC} $1" | tee -a "$VERIFICATION_LOG"
 }
 
-error() {
+error_verify() {
     echo -e "${RED}✗${NC} $1" | tee -a "$VERIFICATION_LOG"
 }
 
-warning() {
+warning_verify() {
     echo -e "${YELLOW}⚠${NC} $1" | tee -a "$VERIFICATION_LOG"
 }
+
+###############################################################################
+# Help
+###############################################################################
 
 print_usage() {
     cat << EOF
@@ -71,7 +71,7 @@ Options:
   <backup-file>      Path to specific backup file to verify
   --list             List all available backups
   --all              Verify all backups in the backup directory
-  --deep             Perform deep verification (test SQL syntax)
+  --deep             Perform deep verification (SQL syntax check)
   --fix-permissions  Fix backup file permissions (chmod 600)
   -h, --help         Show this help message
 
@@ -98,153 +98,87 @@ EOF
 # Verification Functions
 ###############################################################################
 
-list_backups() {
-    log "Listing available backups in $BACKUP_DIR..."
-    echo ""
-
-    if [[ ! -d "$BACKUP_DIR" ]]; then
-        warning "Backup directory not found: $BACKUP_DIR"
-        return
-    fi
-
-    local backup_count=0
-    local total_size=0
-
-    echo "Available Backups:"
-    echo "==================="
-
-    while IFS= read -r -d '' backup; do
-        backup_count=$((backup_count + 1))
-
-        # Get file info
-        local filename=$(basename "$backup")
-        local size=$(du -h "$backup" | cut -f1)
-        local size_bytes=$(du -b "$backup" | cut -f1)
-        total_size=$((total_size + size_bytes))
-
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            local date=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$backup")
-            local perms=$(stat -f "%Sp" "$backup")
-        else
-            local date=$(stat -c "%y" "$backup" | cut -d'.' -f1)
-            local perms=$(stat -c "%A" "$backup")
-        fi
-
-        echo ""
-        echo "[$backup_count] $filename"
-        echo "    Path: $backup"
-        echo "    Size: $size"
-        echo "    Date: $date"
-        echo "    Permissions: $perms"
-
-        # Check if compressed
-        if [[ "$filename" == *.gz ]]; then
-            if gunzip -t "$backup" 2>/dev/null; then
-                echo "    Compression: Valid gzip"
-            else
-                echo "    Compression: CORRUPTED gzip"
-            fi
-        fi
-
-    done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
-
-    echo ""
-    echo "==================="
-    echo "Total backups: $backup_count"
-
-    if [[ $backup_count -gt 0 ]]; then
-        local total_size_human=$(numfmt --to=iec-i --suffix=B $total_size 2>/dev/null || echo "$total_size bytes")
-        echo "Total size: $total_size_human"
-    fi
-    echo ""
-}
-
 verify_file_integrity() {
     local file="$1"
 
-    log "Verifying: $(basename "$file")"
+    log_verify "Verifying: $(basename "$file")"
 
     # Check if file exists
     if [[ ! -f "$file" ]]; then
-        error "File not found: $file"
+        error_verify "File not found: $file"
         return 1
     fi
 
     # Check if file is readable
     if [[ ! -r "$file" ]]; then
-        error "File is not readable (check permissions)"
+        error_verify "File is not readable (check permissions)"
         return 1
     fi
 
     # Get file size
-    local size=$(du -h "$file" | cut -f1)
+    local size=$(get_file_size "$file")
     local size_bytes=$(du -b "$file" | cut -f1)
 
     # Check if file is empty
     if [[ $size_bytes -eq 0 ]]; then
-        error "File is empty (0 bytes)"
+        error_verify "File is empty (0 bytes)"
         return 1
     fi
 
-    success "File exists and is readable ($size)"
+    success_verify "File exists and is readable ($size)"
 
-    # Get file age
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        local file_date=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$file")
-        local perms=$(stat -f "%Sp" "$file")
-    else
-        local file_date=$(stat -c "%y" "$file" | cut -d'.' -f1)
-        local perms=$(stat -c "%A" "$file")
-    fi
+    # Get file info
+    local file_date=$(get_file_date "$file")
+    local perms=$(get_file_perms "$file")
 
-    log "Created: $file_date"
-    log "Permissions: $perms"
+    log_verify "Created: $file_date"
+    log_verify "Permissions: $perms"
 
     # Check permissions
     if [[ "$perms" != "-rw-------" ]] && [[ "$perms" != "-r--------" ]]; then
-        warning "Insecure permissions: $perms (recommended: -rw------- or -r--------)"
+        warning_verify "Insecure permissions: $perms (recommended: -rw------- or -r--------)"
 
         if [[ "$FIX_PERMISSIONS" == true ]]; then
             chmod 600 "$file"
-            success "Permissions fixed to -rw-------"
+            success_verify "Permissions fixed to -rw-------"
         fi
     else
-        success "Permissions are secure"
+        success_verify "Permissions are secure"
     fi
 
     # Verify gzip integrity if compressed
     if [[ "$file" == *.gz ]]; then
-        log "Verifying gzip compression..."
+        log_verify "Verifying gzip compression..."
 
         if gunzip -t "$file" 2>/dev/null; then
-            success "Gzip integrity verified"
+            success_verify "Gzip integrity verified"
 
             # Get uncompressed size
             local uncompressed_size=$(gunzip -l "$file" 2>/dev/null | tail -n 1 | awk '{print $2}')
             local uncompressed_human=$(numfmt --to=iec-i --suffix=B $uncompressed_size 2>/dev/null || echo "$uncompressed_size bytes")
-            log "Uncompressed size: $uncompressed_human"
+            log_verify "Uncompressed size: $uncompressed_human"
 
             # Calculate compression ratio
             local ratio=$(echo "scale=1; $size_bytes * 100 / $uncompressed_size" | bc 2>/dev/null || echo "N/A")
             if [[ "$ratio" != "N/A" ]]; then
-                log "Compression ratio: ${ratio}%"
+                log_verify "Compression ratio: ${ratio}%"
             fi
         else
-            error "Gzip integrity check FAILED - file is corrupted"
+            error_verify "Gzip integrity check FAILED - file is corrupted"
             return 1
         fi
     fi
 
     # Deep verification - check SQL syntax
     if [[ "$DEEP_VERIFY" == true ]]; then
-        log "Performing deep verification (SQL syntax check)..."
+        log_verify "Performing deep verification (SQL syntax check)..."
 
         local temp_file=$(mktemp)
 
         # Extract to temp file if compressed
         if [[ "$file" == *.gz ]]; then
             if ! gunzip -c "$file" > "$temp_file" 2>/dev/null; then
-                error "Failed to decompress file for deep verification"
+                error_verify "Failed to decompress file for deep verification"
                 rm -f "$temp_file"
                 return 1
             fi
@@ -254,9 +188,9 @@ verify_file_integrity() {
 
         # Check for SQL content
         if grep -q "PostgreSQL database dump" "$temp_file" 2>/dev/null; then
-            success "Valid PostgreSQL dump header found"
+            success_verify "Valid PostgreSQL dump header found"
         else
-            warning "PostgreSQL dump header not found - may not be a valid pg_dump file"
+            warning_verify "PostgreSQL dump header not found - may not be a valid pg_dump file"
         fi
 
         # Check for essential SQL commands
@@ -264,31 +198,31 @@ verify_file_integrity() {
         local has_insert=$(grep -c "INSERT INTO" "$temp_file" 2>/dev/null || echo "0")
         local has_copy=$(grep -c "COPY .* FROM stdin" "$temp_file" 2>/dev/null || echo "0")
 
-        log "SQL structure analysis:"
-        log "  - CREATE TABLE statements: $has_create"
-        log "  - INSERT INTO statements: $has_insert"
-        log "  - COPY FROM statements: $has_copy"
+        log_verify "SQL structure analysis:"
+        log_verify "  - CREATE TABLE statements: $has_create"
+        log_verify "  - INSERT INTO statements: $has_insert"
+        log_verify "  - COPY FROM statements: $has_copy"
 
         if [[ $has_create -eq 0 ]]; then
-            warning "No CREATE TABLE statements found - backup may be incomplete"
+            warning_verify "No CREATE TABLE statements found - backup may be incomplete"
         else
-            success "Found $has_create table definitions"
+            success_verify "Found $has_create table definitions"
         fi
 
         # Check for Vaultwarden-specific tables
         local vaultwarden_tables=("users" "ciphers" "folders" "collections" "organizations")
-        log "Checking for Vaultwarden tables:"
+        log_verify "Checking for Vaultwarden tables:"
 
         for table in "${vaultwarden_tables[@]}"; do
             if grep -q "CREATE TABLE.*$table" "$temp_file" 2>/dev/null; then
-                success "  - $table table found"
+                success_verify "  - $table table found"
             else
-                warning "  - $table table not found"
+                warning_verify "  - $table table not found"
             fi
         done
 
         rm -f "$temp_file"
-        success "Deep verification completed"
+        success_verify "Deep verification completed"
     fi
 
     return 0
@@ -324,7 +258,7 @@ main() {
                 print_usage
                 ;;
             -*)
-                error "Unknown option: $1\nUse --help for usage information"
+                print_error "Unknown option: $1\nUse --help for usage information"
                 exit 1
                 ;;
             *)
@@ -335,13 +269,9 @@ main() {
     done
 
     # Create verification log directory
-    mkdir -p "$VERIFICATION_LOG_DIR"
+    ensure_dir "$VERIFICATION_LOG_DIR"
 
-    echo ""
-    echo "========================================="
-    echo "  Vaultwarden Backup Verification"
-    echo "========================================="
-    echo ""
+    print_section "Vaultwarden Backup Verification"
 
     # Handle --list option
     if [[ "$LIST_ONLY" == true ]]; then
@@ -349,16 +279,16 @@ main() {
         exit 0
     fi
 
-    log "Verification started at $(date)"
+    log_verify "Verification started at $(date)"
 
     # Handle --all option
     if [[ "$VERIFY_ALL" == true ]]; then
         if [[ ! -d "$BACKUP_DIR" ]]; then
-            error "Backup directory not found: $BACKUP_DIR"
+            print_error "Backup directory not found: $BACKUP_DIR"
             exit 1
         fi
 
-        log "Verifying all backups in $BACKUP_DIR..."
+        log_verify "Verifying all backups in $BACKUP_DIR..."
         echo ""
 
         local verified=0
@@ -374,24 +304,22 @@ main() {
             echo ""
         done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
 
-        echo "========================================="
-        echo "Verification Summary"
-        echo "========================================="
-        success "Verified: $verified"
+        print_section "Verification Summary"
+        success_verify "Verified: $verified"
         if [[ $failed -gt 0 ]]; then
-            error "Failed: $failed"
+            error_verify "Failed: $failed"
         else
             echo "Failed: $failed"
         fi
         echo ""
-        log "Verification log: $VERIFICATION_LOG"
+        log_verify "Verification log: $VERIFICATION_LOG"
 
         exit 0
     fi
 
     # Verify specific files
     if [[ ${#files_to_verify[@]} -eq 0 ]]; then
-        error "No backup file specified.\nUse --help for usage information"
+        print_error "No backup file specified.\nUse --help for usage information"
         exit 1
     fi
 
@@ -408,19 +336,16 @@ main() {
         echo ""
     done
 
-    echo "========================================="
-    echo "Verification Complete"
-    echo "========================================="
-    success "Verified: $total_verified"
+    print_section "Verification Complete"
+    success_verify "Verified: $total_verified"
     if [[ $total_failed -gt 0 ]]; then
-        error "Failed: $total_failed"
+        error_verify "Failed: $total_failed"
         exit 1
     else
         echo "Failed: $total_failed"
     fi
     echo ""
-    log "Verification log: $VERIFICATION_LOG"
+    log_verify "Verification log: $VERIFICATION_LOG"
 }
 
-# Run main function
 main "$@"
