@@ -18,9 +18,14 @@ source "$SCRIPT_DIR/lib/backup.sh"
 main() {
     print_banner "Vaultwarden Backup Utility"
 
-    # Check prerequisites
-    check_railway_cli || exit 1
-    check_railway_auth || exit 1
+    # Check prerequisites only if not running in Railway container
+    # Railway containers have DATABASE_URL directly available
+    if [[ -z "$RAILWAY_ENVIRONMENT" && -z "$DATABASE_URL" ]]; then
+        check_railway_cli || exit 1
+        check_railway_auth || exit 1
+    else
+        print_info "Running in Railway container environment - using direct DATABASE_URL access"
+    fi
 
     # Generate timestamp for this backup
     local timestamp=$(date +%Y%m%d_%H%M%S)

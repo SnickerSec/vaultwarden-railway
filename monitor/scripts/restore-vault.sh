@@ -96,20 +96,25 @@ EOF
 check_requirements() {
     log_restore "Checking system requirements..."
 
-    check_railway_cli || error_restore "Railway CLI is not installed"
-    success_restore "Railway CLI found"
+    # Check Railway CLI only if not running in Railway container
+    if [[ -z "$RAILWAY_ENVIRONMENT" && -z "$DATABASE_URL" ]]; then
+        check_railway_cli || error_restore "Railway CLI is not installed"
+        success_restore "Railway CLI found"
+
+        check_railway_auth || error_restore "Not logged into Railway"
+        success_restore "Railway authentication verified"
+
+        check_railway_project || error_restore "No Railway project linked"
+        success_restore "Railway project linked"
+    else
+        log_restore "Running in Railway container environment - using direct DATABASE_URL access"
+    fi
 
     check_psql || error_restore "PostgreSQL client (psql) is not installed"
     success_restore "PostgreSQL client found"
 
     check_pg_dump || error_restore "PostgreSQL pg_dump is not installed"
     success_restore "pg_dump found"
-
-    check_railway_auth || error_restore "Not logged into Railway"
-    success_restore "Railway authentication verified"
-
-    check_railway_project || error_restore "No Railway project linked"
-    success_restore "Railway project linked"
 }
 
 verify_backup_file() {
@@ -136,14 +141,26 @@ verify_backup_file() {
 get_database_info() {
     log_restore "Gathering database information..."
 
-    local db_size=$(railway run psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
-    log_restore "Current database size: $db_size"
+    # Use direct psql if DATABASE_URL is available (Railway container)
+    if [[ -n "$DATABASE_URL" ]]; then
+        local db_size=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+        log_restore "Current database size: $db_size"
 
-    local table_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
-    log_restore "Current table count: $table_count"
+        local table_count=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+        log_restore "Current table count: $table_count"
 
-    local row_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
-    log_restore "Current user count: $row_count"
+        local row_count=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+        log_restore "Current user count: $row_count"
+    else
+        local db_size=$(railway run psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+        log_restore "Current database size: $db_size"
+
+        local table_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+        log_restore "Current table count: $table_count"
+
+        local row_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+        log_restore "Current user count: $row_count"
+    fi
 
     if [[ "$row_count" -gt 0 ]]; then
         warning_restore "Database contains data! This restore will REPLACE all existing data."
@@ -167,30 +184,60 @@ perform_restore() {
         return 0
     fi
 
-    # Drop existing schema and recreate
-    log_restore "Dropping existing schema..."
-    railway run psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" &> /dev/null || error_restore "Failed to drop schema"
-    success_restore "Schema recreated"
+    # Use direct psql if DATABASE_URL is available (Railway container)
+    if [[ -n "$DATABASE_URL" ]]; then
+        # Drop existing schema and recreate
+        log_restore "Dropping existing schema..."
+        psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" &> /dev/null || error_restore "Failed to drop schema"
+        success_restore "Schema recreated"
 
-    # Perform the restore
-    log_restore "Restoring database (this may take several minutes)..."
-    local start_time=$(date +%s)
+        # Perform the restore
+        log_restore "Restoring database (this may take several minutes)..."
+        local start_time=$(date +%s)
 
-    if [[ "$backup_file" == *.gz ]]; then
-        if gunzip -c "$backup_file" | railway run psql "$DATABASE_URL" > /dev/null 2>&1; then
-            local end_time=$(date +%s)
-            local duration=$((end_time - start_time))
-            success_restore "Database restored successfully in ${duration}s"
+        if [[ "$backup_file" == *.gz ]]; then
+            if gunzip -c "$backup_file" | psql "$DATABASE_URL" > /dev/null 2>&1; then
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                success_restore "Database restored successfully in ${duration}s"
+            else
+                error_restore "Database restore failed"
+            fi
         else
-            error_restore "Database restore failed"
+            if psql "$DATABASE_URL" < "$backup_file" > /dev/null 2>&1; then
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                success_restore "Database restored successfully in ${duration}s"
+            else
+                error_restore "Database restore failed"
+            fi
         fi
     else
-        if railway run psql "$DATABASE_URL" < "$backup_file" > /dev/null 2>&1; then
-            local end_time=$(date +%s)
-            local duration=$((end_time - start_time))
-            success_restore "Database restored successfully in ${duration}s"
+        # Drop existing schema and recreate
+        log_restore "Dropping existing schema..."
+        railway run psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" &> /dev/null || error_restore "Failed to drop schema"
+        success_restore "Schema recreated"
+
+        # Perform the restore
+        log_restore "Restoring database (this may take several minutes)..."
+        local start_time=$(date +%s)
+
+        if [[ "$backup_file" == *.gz ]]; then
+            if gunzip -c "$backup_file" | railway run psql "$DATABASE_URL" > /dev/null 2>&1; then
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                success_restore "Database restored successfully in ${duration}s"
+            else
+                error_restore "Database restore failed"
+            fi
         else
-            error_restore "Database restore failed"
+            if railway run psql "$DATABASE_URL" < "$backup_file" > /dev/null 2>&1; then
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                success_restore "Database restored successfully in ${duration}s"
+            else
+                error_restore "Database restore failed"
+            fi
         fi
     fi
 }
@@ -198,29 +245,56 @@ perform_restore() {
 verify_restore() {
     log_restore "Verifying restore integrity..."
 
-    if ! railway run psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
-        error_restore "Cannot connect to database after restore"
-    fi
-    success_restore "Database connection verified"
+    # Use direct psql if DATABASE_URL is available (Railway container)
+    if [[ -n "$DATABASE_URL" ]]; then
+        if ! psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
+            error_restore "Cannot connect to database after restore"
+        fi
+        success_restore "Database connection verified"
 
-    local table_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
-    log_restore "Restored table count: $table_count"
+        local table_count=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+        log_restore "Restored table count: $table_count"
 
-    if [[ "$table_count" -eq 0 ]]; then
-        warning_restore "No tables found after restore - this may indicate a problem"
+        if [[ "$table_count" -eq 0 ]]; then
+            warning_restore "No tables found after restore - this may indicate a problem"
+        else
+            success_restore "Tables restored: $table_count"
+        fi
+
+        local user_count=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+        if [[ "$user_count" -gt 0 ]]; then
+            success_restore "User data verified: $user_count users"
+        else
+            warning_restore "No users found in restored database"
+        fi
+
+        local db_size=$(psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+        log_restore "Restored database size: $db_size"
     else
-        success_restore "Tables restored: $table_count"
-    fi
+        if ! railway run psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
+            error_restore "Cannot connect to database after restore"
+        fi
+        success_restore "Database connection verified"
 
-    local user_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
-    if [[ "$user_count" -gt 0 ]]; then
-        success_restore "User data verified: $user_count users"
-    else
-        warning_restore "No users found in restored database"
-    fi
+        local table_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
+        log_restore "Restored table count: $table_count"
 
-    local db_size=$(railway run psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
-    log_restore "Restored database size: $db_size"
+        if [[ "$table_count" -eq 0 ]]; then
+            warning_restore "No tables found after restore - this may indicate a problem"
+        else
+            success_restore "Tables restored: $table_count"
+        fi
+
+        local user_count=$(railway run psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+        if [[ "$user_count" -gt 0 ]]; then
+            success_restore "User data verified: $user_count users"
+        else
+            warning_restore "No users found in restored database"
+        fi
+
+        local db_size=$(railway run psql "$DATABASE_URL" -t -c "SELECT pg_size_pretty(pg_database_size(current_database()));" | xargs)
+        log_restore "Restored database size: $db_size"
+    fi
 }
 
 ###############################################################################

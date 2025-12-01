@@ -127,11 +127,20 @@ check_pg_dump() {
     return 0
 }
 
-# Check database connection via Railway
+# Check database connection via Railway or direct
 check_database_connection() {
-    if ! railway run psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
-        print_error "Cannot connect to database"
-        return 1
+    # Use direct psql if DATABASE_URL is available (Railway container)
+    # Otherwise use railway run command (local development)
+    if [[ -n "$DATABASE_URL" ]]; then
+        if ! psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
+            print_error "Cannot connect to database"
+            return 1
+        fi
+    else
+        if ! railway run psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
+            print_error "Cannot connect to database"
+            return 1
+        fi
     fi
     return 0
 }
