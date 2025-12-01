@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release \
     ca-certificates \
+    gzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PostgreSQL client tools

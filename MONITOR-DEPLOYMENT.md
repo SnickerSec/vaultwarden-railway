@@ -67,7 +67,16 @@ The monitor dashboard provides a web interface to:
    - Connect your repository
    - Set root directory to `monitor`
 
-3. **Configure environment variables** in the Railway dashboard:
+3. **Configure persistent storage (CRITICAL):**
+   - Go to your monitor service settings
+   - Click "Volumes" tab
+   - Click "New Volume"
+   - Set **Mount Path**: `/backups`
+   - Save the volume configuration
+
+   ⚠️ **Without this volume, all backups will be lost when the container restarts!**
+
+4. **Configure environment variables** in the Railway dashboard:
 
    | Variable | Value |
    |----------|-------|
@@ -78,8 +87,32 @@ The monitor dashboard provides a web interface to:
    | `VAULTWARDEN_URL` | *(your Vaultwarden instance URL, e.g., https://vault.example.com)* |
    | `PUBLIC_DATABASE_URL` | *(copy from main Vaultwarden service)* |
 
-4. **Deploy:**
+5. **Deploy:**
    - Railway will automatically build and deploy using the Dockerfile
+
+## Post-Deployment Configuration
+
+### Setting Up Persistent Backup Storage
+
+Railway volumes provide persistent storage that survives container restarts and redeployments.
+
+**To add a volume to your monitor service:**
+
+1. Navigate to your monitor service in Railway dashboard
+2. Click on the "Settings" tab
+3. Scroll to "Volumes" section
+4. Click "Add Volume"
+5. Configure:
+   - **Mount Path**: `/backups`
+   - Railway will automatically create and manage the volume
+
+**Volume Specifications:**
+- Mount path must be exactly `/backups` (matches BACKUP_DIR environment variable)
+- Volume persists across deployments and restarts
+- Backups will be stored permanently until manually deleted
+- Volume size scales automatically with Railway's pricing tier
+
+⚠️ **CRITICAL**: Without a volume mounted at `/backups`, all backups will be stored in the container's ephemeral filesystem and **will be lost** when the container restarts or redeploys!
 
 ## Default Credentials
 

@@ -138,8 +138,6 @@ def get_system_status():
         'backup_dir_exists': Config.BACKUP_DIR.exists(),
         'backup_count': len(list(Config.BACKUP_DIR.glob('*.sql*'))),
         'total_backup_size': 0,
-        'latest_backup': None,
-        'oldest_backup': None,
         'railway_cli_installed': False,
         'psql_installed': False,
         'scripts_exist': {},
@@ -157,12 +155,6 @@ def get_system_status():
             pass
 
     status['total_backup_size_human'] = format_bytes(status['total_backup_size'])
-
-    # Get latest and oldest backups
-    backups = get_backups()
-    if backups:
-        status['latest_backup'] = backups[0]
-        status['oldest_backup'] = backups[-1]
 
     # Check for Railway CLI
     result = run_command(['which', 'railway'], timeout=Config.SHORT_COMMAND_TIMEOUT)
