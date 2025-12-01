@@ -677,6 +677,21 @@
             const psqlStatus = status.psql_installed ? 'success' : 'danger';
             const vaultwardenStatus = status.vaultwarden?.online ? 'success' : 'danger';
 
+            // Determine version status indicator
+            const versionStatusMap = {
+                'up-to-date': 'success',
+                'outdated': 'danger',
+                'newer': 'warning',
+                'unknown': 'warning'
+            };
+            const versionStatus = versionStatusMap[status.vaultwarden?.version_status] || 'warning';
+
+            // Build version display text
+            let versionDisplay = status.vaultwarden?.version || 'Unknown';
+            if (status.vaultwarden?.version_status === 'outdated' && status.vaultwarden?.latest_version) {
+                versionDisplay += ` (${status.vaultwarden.latest_version} available)`;
+            }
+
             container.innerHTML = `
                 <div class="stat-grid">
                     <div class="stat-item">
@@ -689,7 +704,8 @@
                     <div class="stat-item">
                         <div class="stat-label">Version</div>
                         <div class="stat-value" style="font-size: 16px;">
-                            ${status.vaultwarden?.version || 'Unknown'}
+                            <span class="status-indicator status-${versionStatus}"></span>
+                            ${versionDisplay}
                         </div>
                     </div>
                     <div class="stat-item">

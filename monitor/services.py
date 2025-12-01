@@ -14,12 +14,61 @@ from utils import get_file_info, format_bytes, run_command, is_safe_path
 logger = logging.getLogger(__name__)
 
 
+def get_latest_vaultwarden_version():
+    """Get the latest Vaultwarden version from GitHub releases."""
+    try:
+        response = requests.get(
+            'https://api.github.com/repos/dani-garcia/vaultwarden/releases/latest',
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            # Remove 'v' prefix from tag_name (e.g., 'v1.34.3' -> '1.34.3')
+            tag = data.get('tag_name', '')
+            return tag.lstrip('v')
+    except Exception as e:
+        logger.error(f"Error fetching latest Vaultwarden version: {e}")
+    return None
+
+
+def compare_versions(current, latest):
+    """
+    Compare two semantic versions.
+    Returns: 'up-to-date', 'outdated', 'newer', or 'unknown'
+    """
+    if not current or not latest:
+        return 'unknown'
+
+    try:
+        # Parse versions as tuples of integers
+        def parse_version(v):
+            # Remove any non-numeric suffixes (like -rc1, -beta)
+            v = v.split('-')[0]
+            # Split by dots and convert to integers
+            return tuple(int(x) for x in v.split('.'))
+
+        current_parts = parse_version(current)
+        latest_parts = parse_version(latest)
+
+        if current_parts < latest_parts:
+            return 'outdated'
+        elif current_parts == latest_parts:
+            return 'up-to-date'
+        else:
+            return 'newer'
+    except Exception as e:
+        logger.error(f"Error comparing versions: {e}")
+        return 'unknown'
+
+
 def check_vaultwarden_status():
     """Check if Vaultwarden is online and get version info."""
     if not Config.VAULTWARDEN_URL:
         return {
             'online': False,
             'version': None,
+            'latest_version': None,
+            'version_status': 'unknown',
             'error': 'VAULTWARDEN_URL not configured'
         }
 
@@ -64,21 +113,31 @@ def check_vaultwarden_status():
             except:
                 pass
 
+        # Get latest version from GitHub and compare
+        latest_version = get_latest_vaultwarden_version()
+        version_status = compare_versions(version_info, latest_version)
+
         return {
             'online': online,
             'version': version_info,
+            'latest_version': latest_version,
+            'version_status': version_status,
             'error': None
         }
     except requests.exceptions.Timeout:
         return {
             'online': False,
             'version': None,
+            'latest_version': None,
+            'version_status': 'unknown',
             'error': 'Connection timeout'
         }
     except requests.exceptions.ConnectionError:
         return {
             'online': False,
             'version': None,
+            'latest_version': None,
+            'version_status': 'unknown',
             'error': 'Connection refused'
         }
     except Exception as e:
@@ -86,6 +145,8 @@ def check_vaultwarden_status():
         return {
             'online': False,
             'version': None,
+            'latest_version': None,
+            'version_status': 'unknown',
             'error': str(e)
         }
 
