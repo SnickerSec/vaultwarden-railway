@@ -39,7 +39,7 @@ The monitor dashboard provides a web interface to:
    railway variables set MONITOR_SECRET_KEY=c1d888873d98cf125f2b573949f29d9f556e3840a764ddff47501642a544e380
 
    # Password hash for admin access
-   railway variables set MONITOR_PASSWORD_HASH='scrypt:32768:8:1$Je6PNXrHQjSRUuFM$216d36b7fbb5d9048123e18d1c57ba572fbcf77aa52f21816c567aa1314033a08df386e3b63e9d4602afd6a83ba16e9fa9490089901cbd3897f1ccd3dce0d3f3'
+   railway variables set MONITOR_PASSWORD_HASH='scrypt:32768:8:1$hLYkSO8rx9MBaijT$7344c21a03132cfe98498e5cd4d65b3cb32a3e710721e9cef9cca980d635e295ece1b450a5d4d2152bdf289950eab18b66b8ef7bccd679036ba3effc8dc38caa'
 
    # Port configuration
    railway variables set MONITOR_PORT=5000
@@ -69,7 +69,7 @@ The monitor dashboard provides a web interface to:
    | Variable | Value |
    |----------|-------|
    | `MONITOR_SECRET_KEY` | `c1d888873d98cf125f2b573949f29d9f556e3840a764ddff47501642a544e380` |
-   | `MONITOR_PASSWORD_HASH` | `scrypt:32768:8:1$Je6PNXrHQjSRUuFM$216d36b7fbb5d9048123e18d1c57ba572fbcf77aa52f21816c567aa1314033a08df386e3b63e9d4602afd6a83ba16e9fa9490089901cbd3897f1ccd3dce0d3f3` |
+   | `MONITOR_PASSWORD_HASH` | `scrypt:32768:8:1$hLYkSO8rx9MBaijT$7344c21a03132cfe98498e5cd4d65b3cb32a3e710721e9cef9cca980d635e295ece1b450a5d4d2152bdf289950eab18b66b8ef7bccd679036ba3effc8dc38caa` |
    | `MONITOR_PORT` | `5000` |
    | `MONITOR_DEBUG` | `false` |
    | `PUBLIC_DATABASE_URL` | *(copy from main Vaultwarden service)* |
