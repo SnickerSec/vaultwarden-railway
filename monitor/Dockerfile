@@ -30,14 +30,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY monitor/*.py .
 COPY monitor/templates/ templates/
 
-# Copy backup scripts from parent directory
-COPY scripts/backup-vault.sh /scripts/
-COPY scripts/restore-vault.sh /scripts/
-COPY scripts/verify-backup.sh /scripts/
+# Copy backup scripts from monitor directory
+COPY monitor/scripts/backup-vault.sh /scripts/
+COPY monitor/scripts/restore-vault.sh /scripts/
+COPY monitor/scripts/verify-backup.sh /scripts/
 
 # Copy lib directory files
 RUN mkdir -p /scripts/lib
-COPY scripts/lib/*.sh /scripts/lib/
+COPY monitor/scripts/lib/*.sh /scripts/lib/
 
 # Make scripts executable
 RUN chmod +x /scripts/*.sh /scripts/lib/*.sh
