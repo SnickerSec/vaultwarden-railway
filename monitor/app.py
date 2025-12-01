@@ -44,12 +44,28 @@ def check_auth(password):
     """Verify admin password"""
     return check_password_hash(ADMIN_PASSWORD_HASH, password)
 
+def is_safe_path(base_dir, user_path):
+    """
+    Validate that a user-provided path is within the allowed base directory.
+    Prevents path traversal attacks.
+    """
+    try:
+        base = Path(base_dir).resolve()
+        target = Path(user_path).resolve()
+        return target.is_relative_to(base)
+    except (ValueError, OSError):
+        return False
+
 def run_command(cmd, timeout=300):
-    """Execute shell command and return output"""
+    """Execute shell command and return output
+
+    Note: cmd should be a list of arguments, not a shell string.
+    This prevents command injection vulnerabilities.
+    """
     try:
         result = subprocess.run(
             cmd,
-            shell=True,
+            shell=False,  # Disable shell to prevent command injection
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -65,14 +81,15 @@ def run_command(cmd, timeout=300):
         return {
             'success': False,
             'stdout': '',
-            'stderr': f'Command timed out after {timeout} seconds',
+            'stderr': 'Command execution timed out',  # Don't expose timeout duration
             'returncode': -1
         }
     except Exception as e:
+        logger.error(f"Command execution failed: {e}")
         return {
             'success': False,
             'stdout': '',
-            'stderr': str(e),
+            'stderr': 'Command execution failed',  # Generic error message
             'returncode': -1
         }
 
@@ -184,11 +201,11 @@ def get_system_status():
         status['oldest_backup'] = backups[-1]
 
     # Check for Railway CLI
-    result = run_command('which railway', timeout=5)
+    result = run_command(['which', 'railway'], timeout=5)
     status['railway_cli_installed'] = result['success']
 
     # Check for psql
-    result = run_command('which psql', timeout=5)
+    result = run_command(['which', 'psql'], timeout=5)
     status['psql_installed'] = result['success']
 
     # Check for scripts
@@ -205,13 +222,17 @@ def verify_backup(backup_path):
     if not script.exists():
         return {'success': False, 'error': 'Verification script not found'}
 
-    cmd = f'./verify-backup.sh "{backup_path}"'
+    # Validate path to prevent path traversal
+    if not is_safe_path(BACKUP_DIR, backup_path):
+        return {'success': False, 'error': 'Invalid backup path'}
+
+    cmd = ['./verify-backup.sh', str(backup_path)]
     result = run_command(cmd, timeout=60)
 
     return {
         'success': result['success'],
         'output': result['stdout'],
-        'error': result['stderr']
+        'error': result['stderr'] if result['success'] else 'Verification failed'
     }
 
 @app.route('/')
@@ -227,7 +248,7 @@ def api_status():
         return jsonify({'success': True, 'data': status})
     except Exception as e:
         logger.error(f"Error getting status: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to retrieve system status'}), 500
 
 @app.route('/api/backups')
 def api_backups():
@@ -237,7 +258,7 @@ def api_backups():
         return jsonify({'success': True, 'data': backups})
     except Exception as e:
         logger.error(f"Error getting backups: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to retrieve backups'}), 500
 
 @app.route('/api/backups/create', methods=['POST'])
 def api_create_backup():
@@ -254,7 +275,7 @@ def api_create_backup():
             return jsonify({'success': False, 'error': 'Backup script not found'}), 500
 
         logger.info("Starting manual backup...")
-        result = run_command('./backup-vault.sh', timeout=300)
+        result = run_command(['./backup-vault.sh'], timeout=300)
 
         if result['success']:
             logger.info("Backup created successfully")
@@ -267,13 +288,12 @@ def api_create_backup():
             logger.error(f"Backup failed: {result['stderr']}")
             return jsonify({
                 'success': False,
-                'error': 'Backup failed',
-                'details': result['stderr']
+                'error': 'Backup creation failed'
             }), 500
 
     except Exception as e:
         logger.error(f"Error creating backup: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to create backup'}), 500
 
 @app.route('/api/backups/verify', methods=['POST'])
 def api_verify_backup():
@@ -286,21 +306,21 @@ def api_verify_backup():
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
         # Security check: ensure path is within backup directory
-        backup_file = Path(backup_path)
-        if not str(backup_file.resolve()).startswith(str(BACKUP_DIR.resolve())):
+        if not is_safe_path(BACKUP_DIR, backup_path):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
+        backup_file = Path(backup_path)
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
-        logger.info(f"Verifying backup: {backup_path}")
-        result = verify_backup(backup_path)
+        logger.info(f"Verifying backup: {backup_file.name}")
+        result = verify_backup(str(backup_file))
 
         return jsonify(result)
 
     except Exception as e:
         logger.error(f"Error verifying backup: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to verify backup'}), 500
 
 @app.route('/api/backups/restore', methods=['POST'])
 def api_restore_backup():
@@ -319,10 +339,10 @@ def api_restore_backup():
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
         # Security check: ensure path is within backup directory
-        backup_file = Path(backup_path)
-        if not str(backup_file.resolve()).startswith(str(BACKUP_DIR.resolve())):
+        if not is_safe_path(BACKUP_DIR, backup_path):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
+        backup_file = Path(backup_path)
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
@@ -330,14 +350,14 @@ def api_restore_backup():
         if not script.exists():
             return jsonify({'success': False, 'error': 'Restore script not found'}), 500
 
-        # Build restore command
-        cmd = f'./restore-vault.sh "{backup_path}"'
+        # Build restore command with proper arguments
+        cmd = ['./restore-vault.sh', str(backup_file)]
         if skip_backup:
-            cmd += ' --skip-backup'
+            cmd.append('--skip-backup')
         if force:
-            cmd += ' --force'
+            cmd.append('--force')
 
-        logger.info(f"Starting restore from: {backup_path}")
+        logger.info(f"Starting restore from: {backup_file.name}")
         result = run_command(cmd, timeout=600)
 
         if result['success']:
@@ -351,13 +371,12 @@ def api_restore_backup():
             logger.error(f"Restore failed: {result['stderr']}")
             return jsonify({
                 'success': False,
-                'error': 'Restore failed',
-                'details': result['stderr']
+                'error': 'Restore operation failed'
             }), 500
 
     except Exception as e:
         logger.error(f"Error restoring backup: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to restore backup'}), 500
 
 @app.route('/api/logs/restore')
 def api_restore_logs():
@@ -367,7 +386,7 @@ def api_restore_logs():
         return jsonify({'success': True, 'data': logs})
     except Exception as e:
         logger.error(f"Error getting restore logs: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to retrieve restore logs'}), 500
 
 @app.route('/api/logs/verification')
 def api_verification_logs():
@@ -377,7 +396,7 @@ def api_verification_logs():
         return jsonify({'success': True, 'data': logs})
     except Exception as e:
         logger.error(f"Error getting verification logs: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to retrieve verification logs'}), 500
 
 @app.route('/api/logs/download/<log_type>/<filename>')
 def api_download_log(log_type, filename):
@@ -391,11 +410,11 @@ def api_download_log(log_type, filename):
         else:
             return jsonify({'success': False, 'error': 'Invalid log type'}), 400
 
-        # Security check
-        log_file = log_dir / filename
-        if not str(log_file.resolve()).startswith(str(log_dir.resolve())):
+        # Security check: prevent path traversal
+        if not is_safe_path(log_dir, log_dir / filename):
             return jsonify({'success': False, 'error': 'Invalid file path'}), 400
 
+        log_file = log_dir / filename
         if not log_file.exists():
             return jsonify({'success': False, 'error': 'Log file not found'}), 404
 
@@ -403,7 +422,7 @@ def api_download_log(log_type, filename):
 
     except Exception as e:
         logger.error(f"Error downloading log: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to download log file'}), 500
 
 @app.route('/health')
 def health():

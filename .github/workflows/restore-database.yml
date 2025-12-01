@@ -22,6 +22,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   restore-database:
     runs-on: ubuntu-latest
