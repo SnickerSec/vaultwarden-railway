@@ -44,16 +44,39 @@ def check_auth(password):
     """Verify admin password"""
     return check_password_hash(ADMIN_PASSWORD_HASH, password)
 
+def sanitize_filename(filename):
+    """
+    Sanitize a filename by removing path traversal sequences and invalid characters.
+    Returns only the basename, preventing directory traversal.
+    """
+    import os
+    # Remove any path components, only keep filename
+    safe_name = os.path.basename(filename)
+    # Remove any remaining path separators
+    safe_name = safe_name.replace('/', '').replace('\\', '')
+    # Remove null bytes and other dangerous characters
+    safe_name = safe_name.replace('\x00', '').replace('..', '')
+    return safe_name
+
 def is_safe_path(base_dir, user_path):
     """
     Validate that a user-provided path is within the allowed base directory.
     Prevents path traversal attacks.
     """
     try:
+        # Sanitize the input first
+        if not user_path or not isinstance(user_path, (str, Path)):
+            return False
+
         base = Path(base_dir).resolve()
+        # Convert to Path but catch any issues with malicious input
+        if isinstance(user_path, str):
+            # Remove null bytes and normalize
+            user_path = user_path.replace('\x00', '')
+
         target = Path(user_path).resolve()
         return target.is_relative_to(base)
-    except (ValueError, OSError):
+    except (ValueError, OSError, RuntimeError):
         return False
 
 def run_command(cmd, timeout=300):
@@ -61,8 +84,28 @@ def run_command(cmd, timeout=300):
 
     Note: cmd should be a list of arguments, not a shell string.
     This prevents command injection vulnerabilities.
+    Only whitelisted commands are allowed.
     """
+    # Whitelist of allowed commands
+    ALLOWED_COMMANDS = ['./backup-vault.sh', './restore-vault.sh', './verify-backup.sh', 'which']
+
     try:
+        # Validate command is in whitelist
+        if not isinstance(cmd, list) or len(cmd) == 0:
+            raise ValueError("Command must be a non-empty list")
+
+        if cmd[0] not in ALLOWED_COMMANDS:
+            logger.error(f"Attempted to run disallowed command: {cmd[0]}")
+            raise ValueError(f"Command not allowed: {cmd[0]}")
+
+        # Additional validation: ensure no command arguments contain shell metacharacters
+        for arg in cmd:
+            if not isinstance(arg, str):
+                raise ValueError("All command arguments must be strings")
+            # Check for dangerous characters that could be exploited
+            if any(char in arg for char in ['|', '&', ';', '\n', '`', '$', '(', ')']):
+                raise ValueError("Invalid characters in command argument")
+
         result = subprocess.run(
             cmd,
             shell=False,  # Disable shell to prevent command injection
@@ -81,7 +124,15 @@ def run_command(cmd, timeout=300):
         return {
             'success': False,
             'stdout': '',
-            'stderr': 'Command execution timed out',  # Don't expose timeout duration
+            'stderr': 'Command execution timed out',
+            'returncode': -1
+        }
+    except ValueError as e:
+        logger.error(f"Command validation failed: {e}")
+        return {
+            'success': False,
+            'stdout': '',
+            'stderr': 'Invalid command',
             'returncode': -1
         }
     except Exception as e:
@@ -89,7 +140,7 @@ def run_command(cmd, timeout=300):
         return {
             'success': False,
             'stdout': '',
-            'stderr': 'Command execution failed',  # Generic error message
+            'stderr': 'Command execution failed',
             'returncode': -1
         }
 
@@ -305,11 +356,18 @@ def api_verify_backup():
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
-        # Security check: ensure path is within backup directory
-        if not is_safe_path(BACKUP_DIR, backup_path):
+        # Sanitize filename first - only use basename to prevent directory traversal
+        safe_filename = sanitize_filename(backup_path)
+        if not safe_filename or safe_filename != backup_path:
+            return jsonify({'success': False, 'error': 'Invalid backup filename'}), 400
+
+        # Create safe path within backup directory
+        backup_file = BACKUP_DIR / safe_filename
+
+        # Double-check path is safe
+        if not is_safe_path(BACKUP_DIR, backup_file):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
-        backup_file = Path(backup_path)
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
@@ -338,11 +396,18 @@ def api_restore_backup():
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
-        # Security check: ensure path is within backup directory
-        if not is_safe_path(BACKUP_DIR, backup_path):
+        # Sanitize filename first - only use basename to prevent directory traversal
+        safe_filename = sanitize_filename(backup_path)
+        if not safe_filename or safe_filename != backup_path:
+            return jsonify({'success': False, 'error': 'Invalid backup filename'}), 400
+
+        # Create safe path within backup directory
+        backup_file = BACKUP_DIR / safe_filename
+
+        # Double-check path is safe
+        if not is_safe_path(BACKUP_DIR, backup_file):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
-        backup_file = Path(backup_path)
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
@@ -410,11 +475,18 @@ def api_download_log(log_type, filename):
         else:
             return jsonify({'success': False, 'error': 'Invalid log type'}), 400
 
-        # Security check: prevent path traversal
-        if not is_safe_path(log_dir, log_dir / filename):
+        # Sanitize filename - only use basename to prevent directory traversal
+        safe_filename = sanitize_filename(filename)
+        if not safe_filename or safe_filename != filename:
+            return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+
+        # Create safe path within log directory
+        log_file = log_dir / safe_filename
+
+        # Double-check path is safe
+        if not is_safe_path(log_dir, log_file):
             return jsonify({'success': False, 'error': 'Invalid file path'}), 400
 
-        log_file = log_dir / filename
         if not log_file.exists():
             return jsonify({'success': False, 'error': 'Log file not found'}), 404
 
