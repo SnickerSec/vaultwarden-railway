@@ -38,9 +38,20 @@ main() {
 
     # Create database backup
     print_info "Calling create_database_backup..."
-    if backup_file=$(create_database_backup "$backup_file"); then
+
+    create_database_backup "$backup_file"
+    local backup_result=$?
+    print_info "create_database_backup returned: $backup_result"
+
+    if [[ $backup_result -eq 0 ]]; then
+        print_info "Backup file created successfully"
         # Compress backup
-        if compressed_file=$(compress_backup "$backup_file"); then
+        compress_backup "$backup_file"
+        local compress_result=$?
+        print_info "compress_backup returned: $compress_result"
+
+        if [[ $compress_result -eq 0 ]]; then
+            compressed_file="${backup_file}.gz"
             # Show backup size
             local backup_size=$(get_file_size "$compressed_file")
             print_info "Backup size: $backup_size"
