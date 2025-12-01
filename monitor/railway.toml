@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "monitor/Dockerfile"
+dockerContext = "."
 
 [deploy]
 startCommand = "python app.py"
