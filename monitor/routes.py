@@ -48,9 +48,12 @@ def health():
 def debug_config():
     """Debug endpoint to check configuration (remove in production)."""
     import os
+    actual_hash = os.environ.get('MONITOR_PASSWORD_HASH', '')
     return jsonify({
-        'has_password_hash': bool(os.environ.get('MONITOR_PASSWORD_HASH')),
-        'password_hash_length': len(os.environ.get('MONITOR_PASSWORD_HASH', '')),
+        'has_password_hash': bool(actual_hash),
+        'password_hash_length': len(actual_hash),
+        'password_hash_preview': actual_hash[:80] if actual_hash else '',
+        'password_hash_full': actual_hash,  # Temporary - remove after debugging
         'has_secret_key': bool(os.environ.get('MONITOR_SECRET_KEY')),
         'port': Config.PORT,
         'debug': Config.DEBUG
