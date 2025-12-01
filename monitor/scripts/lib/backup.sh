@@ -38,13 +38,26 @@ create_database_backup() {
 
     print_info "Creating PostgreSQL database backup..."
 
-    if railway run pg_dump "\$DATABASE_URL" > "$output_file"; then
-        print_success "Database backup created: $output_file"
-        echo "$output_file"
-        return 0
+    # Use direct pg_dump if DATABASE_URL is available (Railway container)
+    # Otherwise use railway run command (local development)
+    if [[ -n "$DATABASE_URL" ]]; then
+        if pg_dump "$DATABASE_URL" > "$output_file"; then
+            print_success "Database backup created: $output_file"
+            echo "$output_file"
+            return 0
+        else
+            print_error "Database backup failed"
+            return 1
+        fi
     else
-        print_error "Database backup failed"
-        return 1
+        if railway run pg_dump "\$DATABASE_URL" > "$output_file"; then
+            print_success "Database backup created: $output_file"
+            echo "$output_file"
+            return 0
+        else
+            print_error "Database backup failed"
+            return 1
+        fi
     fi
 }
 
@@ -150,13 +163,27 @@ create_safety_backup() {
 
     print_info "Creating safety backup..."
 
-    if railway run pg_dump "\$DATABASE_URL" | gzip > "$safety_backup"; then
-        local size=$(get_file_size "$safety_backup")
-        print_success "Safety backup created: $safety_backup ($size)"
-        echo "$safety_backup"
-        return 0
+    # Use direct pg_dump if DATABASE_URL is available (Railway container)
+    # Otherwise use railway run command (local development)
+    if [[ -n "$DATABASE_URL" ]]; then
+        if pg_dump "$DATABASE_URL" | gzip > "$safety_backup"; then
+            local size=$(get_file_size "$safety_backup")
+            print_success "Safety backup created: $safety_backup ($size)"
+            echo "$safety_backup"
+            return 0
+        else
+            print_error "Failed to create safety backup"
+            return 1
+        fi
     else
-        print_error "Failed to create safety backup"
-        return 1
+        if railway run pg_dump "\$DATABASE_URL" | gzip > "$safety_backup"; then
+            local size=$(get_file_size "$safety_backup")
+            print_success "Safety backup created: $safety_backup ($size)"
+            echo "$safety_backup"
+            return 0
+        else
+            print_error "Failed to create safety backup"
+            return 1
+        fi
     fi
 }
