@@ -16,8 +16,8 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ma
     apt-get install -y postgresql-client-17 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Railway CLI
-RUN curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh
+# Install Railway CLI (optional - make installation resilient to failures)
+RUN curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | sh || echo "Railway CLI installation failed, continuing anyway..."
 
 # Set working directory
 WORKDIR /app
