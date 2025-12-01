@@ -50,6 +50,7 @@ In Railway dashboard: New → Database → Add PostgreSQL
 
 | Guide | Description |
 |-------|-------------|
+| [STRUCTURE.md](STRUCTURE.md) | **Codebase organization and structure** |
 | [docs/QUICK_START.md](docs/QUICK_START.md) | 10-minute setup guide |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Detailed deployment |
 | [docs/BACKUP.md](docs/BACKUP.md) | Backup configuration |

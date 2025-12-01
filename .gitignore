@@ -50,3 +50,8 @@ __pycache__/
 .Python
 monitor/venv/
 monitor/*.egg-info/
+
+# Temporary/local scripts (http-cleanup utilities are tracked)
+scripts/maintenance/
+scripts/local/
+scripts/temp/
