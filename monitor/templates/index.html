@@ -764,10 +764,10 @@
                                 <div>🔒 ${backup.permissions}</div>
                             </div>
                             <div class="backup-actions">
-                                <button class="btn btn-primary" onclick="verifyBackup('${backup.path}')">
+                                <button class="btn btn-primary" onclick="verifyBackup('${backup.name}')">
                                     ✓ Verify
                                 </button>
-                                <button class="btn btn-danger" onclick="showRestoreModal('${backup.path}', '${backup.name}')">
+                                <button class="btn btn-danger" onclick="showRestoreModal('${backup.name}', '${backup.name}')">
                                     ↻ Restore
                                 </button>
                             </div>
