@@ -36,36 +36,42 @@ create_database_backup() {
 
     ensure_dir "$BACKUP_DIR"
 
-    print_info "Creating PostgreSQL database backup..."
-    print_info "Database URL present: $([ -n "$DATABASE_URL" ] && echo 'yes' || echo 'no')"
-    print_info "Output file: $output_file"
+    echo "[DEBUG] Creating PostgreSQL database backup..."
+    echo "[DEBUG] Database URL present: $([ -n "$DATABASE_URL" ] && echo 'yes' || echo 'no')"
+    echo "[DEBUG] Output file: $output_file"
 
     # Use direct pg_dump if DATABASE_URL is available (Railway container)
     # Otherwise use railway run command (local development)
     if [[ -n "$DATABASE_URL" ]]; then
-        print_info "Running: pg_dump [DATABASE_URL] > $output_file"
+        echo "[DEBUG] Running: pg_dump with DATABASE_URL"
 
         # Capture both stdout and stderr separately
         local error_file=$(mktemp)
+        echo "[DEBUG] Created temp error file: $error_file"
+
         if pg_dump "$DATABASE_URL" > "$output_file" 2>"$error_file"; then
-            print_success "Database backup created: $output_file"
+            echo "[SUCCESS] Database backup created: $output_file"
             rm -f "$error_file"
             echo "$output_file"
             return 0
         else
             local exit_code=$?
-            print_error "Database backup failed with exit code: $exit_code"
+            echo "[ERROR] pg_dump failed with exit code: $exit_code"
 
             # Show error output
             if [[ -s "$error_file" ]]; then
-                print_error "Error output:"
-                cat "$error_file" >&2
+                echo "[ERROR] pg_dump error output:"
+                cat "$error_file"
+            else
+                echo "[ERROR] No error output from pg_dump"
             fi
 
             # Show last few lines of output file if it exists
             if [[ -f "$output_file" && -s "$output_file" ]]; then
-                print_error "Last lines of output file:"
-                tail -5 "$output_file" >&2
+                echo "[ERROR] Last lines of output file:"
+                tail -5 "$output_file"
+            else
+                echo "[ERROR] Output file does not exist or is empty"
             fi
 
             rm -f "$error_file"
