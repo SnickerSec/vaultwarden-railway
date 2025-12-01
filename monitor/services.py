@@ -198,6 +198,11 @@ def create_backup():
     logger.info("Starting manual backup...")
     result = run_command(['./backup-vault.sh'], timeout=Config.DEFAULT_COMMAND_TIMEOUT)
 
+    logger.info(f"Backup command completed - success: {result['success']}")
+    logger.info(f"Backup stdout: {result.get('stdout', 'N/A')}")
+    logger.info(f"Backup stderr: {result.get('stderr', 'N/A')}")
+    logger.info(f"Backup return code: {result.get('returncode', 'N/A')}")
+
     if result['success']:
         logger.info("Backup created successfully")
         return {
@@ -206,10 +211,11 @@ def create_backup():
             'output': result['stdout']
         }
     else:
-        logger.error(f"Backup failed: {result['stderr']}")
+        error_msg = result.get('stderr', 'Unknown error')
+        logger.error(f"Backup failed: {error_msg}")
         return {
             'success': False,
-            'error': 'Backup creation failed'
+            'error': f'Backup creation failed: {error_msg}'
         }
 
 
