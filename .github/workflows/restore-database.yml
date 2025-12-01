@@ -128,7 +128,7 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           SAFETY_BACKUP="./safety-backups/pre_restore_backup_${TIMESTAMP}.sql.gz"
 
-          if pg_dump "$DATABASE_URL" | gzip > "$SAFETY_BACKUP"; then
+          if pg_dump "$DATABASE_URL" --no-owner --no-acl | gzip > "$SAFETY_BACKUP"; then
             BACKUP_SIZE=$(du -h "$SAFETY_BACKUP" | cut -f1)
             echo "Safety backup created: $SAFETY_BACKUP ($BACKUP_SIZE)"
             echo "SAFETY_BACKUP=$SAFETY_BACKUP" >> $GITHUB_ENV
