@@ -131,6 +131,8 @@ def api_verify_backup():
         if not is_safe_path(Config.BACKUP_DIR, backup_file):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
+        # Safe: path validated by is_safe_path() above
+        # lgtm[py/path-injection]
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
@@ -172,6 +174,8 @@ def api_restore_backup():
         if not is_safe_path(Config.BACKUP_DIR, backup_file):
             return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
 
+        # Safe: path validated by is_safe_path() above
+        # lgtm[py/path-injection]
         if not backup_file.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
@@ -233,9 +237,13 @@ def api_download_log(log_type, filename):
         if not is_safe_path(log_dir, log_file):
             return jsonify({'success': False, 'error': 'Invalid file path'}), 400
 
+        # Safe: path validated by is_safe_path() above
+        # lgtm[py/path-injection]
         if not log_file.exists():
             return jsonify({'success': False, 'error': 'Log file not found'}), 404
 
+        # Safe: path validated by is_safe_path() above
+        # lgtm[py/path-injection]
         return send_file(log_file, as_attachment=True)
 
     except Exception as e:
