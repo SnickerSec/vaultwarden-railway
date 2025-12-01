@@ -34,10 +34,13 @@ COPY monitor/templates/ templates/
 COPY scripts/backup-vault.sh /scripts/
 COPY scripts/restore-vault.sh /scripts/
 COPY scripts/verify-backup.sh /scripts/
-COPY scripts/lib/ /scripts/lib/
+
+# Copy lib directory files
+RUN mkdir -p /scripts/lib
+COPY scripts/lib/*.sh /scripts/lib/
 
 # Make scripts executable
-RUN chmod +x /scripts/*.sh
+RUN chmod +x /scripts/*.sh /scripts/lib/*.sh
 
 # Create necessary directories
 RUN mkdir -p /backups /restore-logs /verification-logs
