@@ -28,10 +28,16 @@ main() {
     fi
 
     # Generate timestamp for this backup
+    print_info "Generating timestamp..."
     local timestamp=$(date +%Y%m%d_%H%M%S)
+    print_info "Timestamp: $timestamp"
+
+    print_info "Backup directory: $BACKUP_DIR"
     local backup_file="$BACKUP_DIR/vaultwarden_db_backup_${timestamp}.sql"
+    print_info "Target backup file: $backup_file"
 
     # Create database backup
+    print_info "Calling create_database_backup..."
     if backup_file=$(create_database_backup "$backup_file"); then
         # Compress backup
         if compressed_file=$(compress_backup "$backup_file"); then
