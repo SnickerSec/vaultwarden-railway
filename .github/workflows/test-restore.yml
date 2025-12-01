@@ -15,6 +15,10 @@ on:
     # Monthly restore test on the 1st at 2 AM UTC
     - cron: '0 2 1 * *'
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   test-restore:
     runs-on: ubuntu-latest
