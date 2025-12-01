@@ -88,19 +88,31 @@ create_database_backup() {
 compress_backup() {
     local backup_file="$1"
 
+    print_info "compress_backup called with: $backup_file"
+
     if [[ ! -f "$backup_file" ]]; then
         print_error "Backup file not found: $backup_file"
         return 1
     fi
 
+    print_info "Backup file exists, size: $(get_file_size "$backup_file" 2>/dev/null || echo 'unknown')"
+    print_info "Checking if gzip is available..."
+
+    if ! command -v gzip &> /dev/null; then
+        print_error "gzip command not found!"
+        return 1
+    fi
+
+    print_info "gzip found at: $(command -v gzip)"
     print_info "Compressing backup..."
 
-    if gzip "$backup_file"; then
+    if gzip "$backup_file" 2>&1; then
         print_success "Backup compressed: ${backup_file}.gz"
         echo "${backup_file}.gz"
         return 0
     else
-        print_error "Compression failed"
+        local exit_code=$?
+        print_error "Compression failed with exit code: $exit_code"
         return 1
     fi
 }
