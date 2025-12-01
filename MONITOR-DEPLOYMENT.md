@@ -45,6 +45,9 @@ The monitor dashboard provides a web interface to:
    railway variables set MONITOR_PORT=5000
    railway variables set MONITOR_DEBUG=false
 
+   # Vaultwarden URL (for status monitoring)
+   railway variables set VAULTWARDEN_URL=https://your-vaultwarden-instance.up.railway.app
+
    # Database URL (should already be set if using existing project)
    # railway variables set PUBLIC_DATABASE_URL=<your-database-url>
    ```
@@ -72,6 +75,7 @@ The monitor dashboard provides a web interface to:
    | `MONITOR_PASSWORD_HASH` | `REDACTED_PASSWORD_HASH` |
    | `MONITOR_PORT` | `5000` |
    | `MONITOR_DEBUG` | `false` |
+   | `VAULTWARDEN_URL` | *(your Vaultwarden instance URL, e.g., https://vault.example.com)* |
    | `PUBLIC_DATABASE_URL` | *(copy from main Vaultwarden service)* |
 
 4. **Deploy:**
