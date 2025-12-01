@@ -27,14 +27,31 @@ export BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 # Create a database backup
 # Usage: create_database_backup [output_file]
 create_database_backup() {
+    echo "[DEBUG] === create_database_backup START ==="
     local output_file="${1:-}"
+    echo "[DEBUG] Received output_file: $output_file"
+
     local timestamp=$(date +%Y%m%d_%H%M%S)
+    echo "[DEBUG] Generated timestamp: $timestamp"
 
     if [[ -z "$output_file" ]]; then
         output_file="$BACKUP_DIR/vaultwarden_db_backup_${timestamp}.sql"
+        echo "[DEBUG] Using default output_file: $output_file"
     fi
 
-    ensure_dir "$BACKUP_DIR"
+    echo "[DEBUG] BACKUP_DIR: $BACKUP_DIR"
+    echo "[DEBUG] Checking if BACKUP_DIR exists..."
+    if [[ -d "$BACKUP_DIR" ]]; then
+        echo "[DEBUG] BACKUP_DIR exists"
+    else
+        echo "[DEBUG] BACKUP_DIR does not exist, creating..."
+    fi
+
+    ensure_dir "$BACKUP_DIR" || {
+        echo "[ERROR] Failed to create BACKUP_DIR"
+        return 1
+    }
+    echo "[DEBUG] BACKUP_DIR ready"
 
     echo "[DEBUG] Creating PostgreSQL database backup..."
     echo "[DEBUG] Database URL present: $([ -n "$DATABASE_URL" ] && echo 'yes' || echo 'no')"
