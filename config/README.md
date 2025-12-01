@@ -1,36 +1,51 @@
 # Configuration Files
 
-This directory contains configuration files for various deployment scenarios.
+This directory contains configuration files organized by purpose.
 
-## Files
+## Directory Structure
 
-### `.env.example`
-Template environment variables for Vaultwarden. Copy this to `.env` for local development:
-```bash
-cp .env.example ../.env
 ```
-
-### `docker-compose.yml`
-Docker Compose configuration for local development and testing.
-
-### `Dockerfile.oauth2`
-Alternative Dockerfile with Google OAuth2 proxy for additional authentication layer.
-
-### `railway-oauth2.toml`
-Railway configuration for OAuth2-protected deployment.
+config/
+├── examples/           # Template files and examples
+│   └── .env.example    # Environment variables template
+├── docker/             # Docker-related configurations
+│   └── docker-compose.yml  # Local development setup
+├── variants/           # Alternative deployment configurations
+│   ├── Dockerfile.oauth2   # OAuth2 proxy Dockerfile
+│   └── railway-oauth2.toml # Railway config for OAuth2
+└── README.md
+```
 
 ## Usage
 
-### For Railway Deployment
-The main `Dockerfile` and `railway.toml` in the root directory are used automatically.
+### Environment Variables
 
-### For Local Development
+Copy the example file to set up your environment:
+
 ```bash
-cp .env.example ../.env
+cp config/examples/.env.example .env
 # Edit .env with your settings
-cd ..
+```
+
+### Local Development
+
+Use Docker Compose for local testing:
+
+```bash
+cd config/docker
 docker-compose up -d
 ```
 
-### For OAuth2 Protected Deployment
-See [../docs/GOOGLE_AUTH_SETUP.md](../docs/GOOGLE_AUTH_SETUP.md) for instructions on using the OAuth2 configuration.
+### Railway Deployment
+
+The main `Dockerfile` and `railway.toml` in the root directory are used automatically by Railway.
+
+### OAuth2 Protected Deployment
+
+For Google OAuth2 pre-authentication, use the variant configurations:
+
+1. Copy `variants/Dockerfile.oauth2` to root as `Dockerfile`
+2. Copy `variants/railway-oauth2.toml` to root as `railway.toml`
+3. Configure OAuth2 credentials in Railway variables
+
+See [../docs/GOOGLE_AUTH_SETUP.md](../docs/GOOGLE_AUTH_SETUP.md) for detailed instructions.

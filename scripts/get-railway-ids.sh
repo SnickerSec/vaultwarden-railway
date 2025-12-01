@@ -6,38 +6,24 @@
 
 set -e
 
-# Colors
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Source shared library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
-echo ""
-echo "╔════════════════════════════════════════╗"
-echo "║   Railway Project ID Finder           ║"
-echo "╚════════════════════════════════════════╝"
-echo ""
+print_banner "Railway Project ID Finder"
 
 # Check if Railway CLI is installed
-if ! command -v railway &> /dev/null; then
-    echo -e "${YELLOW}Railway CLI is not installed${NC}"
-    echo "Install with: npm install -g @railway/cli"
-    exit 1
-fi
+check_railway_cli || exit 1
 
 # Check if logged in
-if ! railway whoami &> /dev/null; then
-    echo -e "${YELLOW}Not logged into Railway${NC}"
-    echo "Login with: railway login"
-    exit 1
-fi
+check_railway_auth || exit 1
 
 # Get project list
-echo -e "${BLUE}Fetching your Railway projects...${NC}"
+print_info "Fetching your Railway projects..."
 railway list
 
 echo ""
-echo -e "${YELLOW}To get your Project ID and Environment ID:${NC}"
+print_warning "To get your Project ID and Environment ID:"
 echo ""
 echo "1. Go to your Railway project dashboard:"
 echo "   https://railway.app/dashboard"
@@ -45,21 +31,21 @@ echo ""
 echo "2. Click on your 'vaultwarden-railway' project"
 echo ""
 echo "3. The Project ID is in the URL:"
-echo "   https://railway.app/project/${BLUE}<PROJECT_ID>${NC}"
+echo -e "   https://railway.app/project/${BLUE}<PROJECT_ID>${NC}"
 echo ""
 echo "4. Click on your environment (usually 'production')"
 echo ""
 echo "5. The Environment ID is also in the URL:"
-echo "   https://railway.app/project/<PROJECT_ID>/${BLUE}<ENVIRONMENT_ID>${NC}"
+echo -e "   https://railway.app/project/<PROJECT_ID>/${BLUE}<ENVIRONMENT_ID>${NC}"
 echo ""
 echo "6. Add these to GitHub Secrets:"
 echo "   - Go to: https://github.com/SnickerSec/vaultwarden-railway/settings/secrets/actions"
-echo "   - Add secret: ${GREEN}RAILWAY_PROJECT_ID${NC} = <your project ID>"
-echo "   - Add secret: ${GREEN}RAILWAY_ENVIRONMENT_ID${NC} = <your environment ID>"
+echo -e "   - Add secret: ${GREEN}RAILWAY_PROJECT_ID${NC} = <your project ID>"
+echo -e "   - Add secret: ${GREEN}RAILWAY_ENVIRONMENT_ID${NC} = <your environment ID>"
 echo ""
-echo -e "${YELLOW}Alternative: Check .railway directory${NC}"
+print_warning "Alternative: Check .railway directory"
 
-if [ -d ".railway" ]; then
+if [[ -d ".railway" ]]; then
     echo ""
     echo "Found .railway directory. Contents:"
     find .railway -type f -exec echo "  {}" \; -exec cat {} \; 2>/dev/null || echo "  (no readable files)"

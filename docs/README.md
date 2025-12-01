@@ -2,44 +2,55 @@
 
 This directory contains all documentation for the Vaultwarden Railway deployment.
 
-## Quick Links
-
-### Core Documentation
-- **[QUICK_START.md](QUICK_START.md)** - Get started in under 10 minutes
-- **[DEPLOY.md](DEPLOY.md)** - Detailed deployment guide
-- **[SETUP_COMPLETE.md](SETUP_COMPLETE.md)** - Post-deployment checklist
-- **[DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md)** - Technical deployment details
-
-### Security & Protection
-- **[SECURITY.md](SECURITY.md)** - Security best practices and admin token setup
-- **[RATE_LIMITING.md](RATE_LIMITING.md)** - Rate limiting configuration and protection
-- **[RATE_LIMITING_SETUP.md](RATE_LIMITING_SETUP.md)** - Quick rate limiting setup guide
-
-### Features & Configuration
-- **[EMAIL_SETUP.md](EMAIL_SETUP.md)** - SMTP email notifications configuration
-- **[BACKUP.md](BACKUP.md)** - Automated daily backups and restore procedures
-- **[BACKUP_SETUP.md](BACKUP_SETUP.md)** - Backup setup complete guide
-- **[UPDATES.md](UPDATES.md)** - Automatic update information
-
-### Advanced Options
-- **[GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)** - Optional Google OAuth protection
-- **[CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)** - Optional Cloudflare access control
-- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Project overview and structure
-
 ## Getting Started
 
-New users should start with [QUICK_START.md](QUICK_START.md) for a streamlined setup experience, or [DEPLOY.md](DEPLOY.md) for comprehensive deployment instructions.
+| Document | Description |
+|----------|-------------|
+| [QUICK_START.md](QUICK_START.md) | Get started in under 10 minutes |
+| [DEPLOY.md](DEPLOY.md) | Detailed deployment guide |
+| [SETUP_COMPLETE.md](SETUP_COMPLETE.md) | Post-deployment checklist |
 
-## Advanced Configuration
+## Operations
 
-For additional security layers:
-- Add Google OAuth authentication: [GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)
-- Configure Cloudflare access control: [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)
+| Document | Description |
+|----------|-------------|
+| [BACKUP.md](BACKUP.md) | Backup configuration and manual procedures |
+| [RESTORE.md](RESTORE.md) | Database restore procedures |
+| [MONITORING.md](MONITORING.md) | Web-based monitoring dashboard |
+| [UPDATES.md](UPDATES.md) | Version management and auto-updates |
 
-For email notifications:
-- Configure SMTP settings: [EMAIL_SETUP.md](EMAIL_SETUP.md)
+## Security
 
-## Maintenance
+| Document | Description |
+|----------|-------------|
+| [SECURITY.md](SECURITY.md) | Security best practices |
+| [RATE_LIMITING.md](RATE_LIMITING.md) | Rate limiting configuration |
+| [GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md) | Google OAuth pre-authentication |
+| [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md) | Cloudflare access control |
 
-- **Backups:** Learn about automated daily backups and restore procedures in [BACKUP.md](BACKUP.md)
-- **Updates:** Learn about automatic updates and version management in [UPDATES.md](UPDATES.md)
+## Configuration
+
+| Document | Description |
+|----------|-------------|
+| [EMAIL_SETUP.md](EMAIL_SETUP.md) | SMTP email notifications |
+| [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md) | Technical deployment details |
+| [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) | Project overview and structure |
+
+## Quick Reference
+
+### New Users
+Start with [QUICK_START.md](QUICK_START.md) for a streamlined 10-minute setup.
+
+### Backup & Restore
+- Automated backups run daily at 3 AM UTC via GitHub Actions
+- See [BACKUP.md](BACKUP.md) for configuration
+- See [RESTORE.md](RESTORE.md) for restore procedures
+
+### Monitoring Dashboard
+- Access via `https://your-monitor-url.railway.app`
+- See [MONITORING.md](MONITORING.md) for setup
+
+### Security Hardening
+1. Configure rate limiting: [RATE_LIMITING.md](RATE_LIMITING.md)
+2. Optional Google OAuth: [GOOGLE_AUTH_SETUP.md](GOOGLE_AUTH_SETUP.md)
+3. Optional Cloudflare: [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)
