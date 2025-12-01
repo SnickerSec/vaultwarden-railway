@@ -715,17 +715,6 @@
                         </div>
                     </div>
                 </div>
-                ${status.latest_backup ? `
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                        <div class="stat-label">Latest Backup</div>
-                        <div style="font-size: 14px; margin-top: 5px;">
-                            ${status.latest_backup.name}<br>
-                            <span style="color: var(--text-muted); font-size: 12px;">
-                                ${status.latest_backup.modified_ago} • ${status.latest_backup.size_human}
-                            </span>
-                        </div>
-                    </div>
-                ` : ''}
             `;
         }
 
