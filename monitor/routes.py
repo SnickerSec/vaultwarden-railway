@@ -24,7 +24,11 @@ main = Blueprint('main', __name__)
 
 def check_auth(password):
     """Verify admin password."""
-    return check_password_hash(Config.ADMIN_PASSWORD_HASH, password)
+    logger.info(f"check_auth called with password length: {len(password)}")
+    logger.info(f"Hash to check against length: {len(Config.ADMIN_PASSWORD_HASH)}")
+    result = check_password_hash(Config.ADMIN_PASSWORD_HASH, password)
+    logger.info(f"check_password_hash result: {result}")
+    return result
 
 
 # Main routes
@@ -83,7 +87,11 @@ def api_create_backup():
         data = request.get_json()
         password = data.get('password', '')
 
+        logger.info(f"Backup create attempt - received password length: {len(password)}")
+        logger.info(f"Expected hash: {Config.ADMIN_PASSWORD_HASH[:50]}...")
+
         if not check_auth(password):
+            logger.warning(f"Authentication failed for backup creation")
             return jsonify({'success': False, 'error': 'Invalid password'}), 401
 
         result = create_backup()
