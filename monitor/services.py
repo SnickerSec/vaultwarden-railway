@@ -33,22 +33,36 @@ def check_vaultwarden_status():
 
         online = response.status_code == 200
 
-        # Try to get version from API endpoint
+        # Try to get version from /api/version endpoint
         version_info = None
         try:
-            # Vaultwarden doesn't have a public version endpoint,
-            # but we can check the root for version info in headers
-            root_response = requests.get(
-                Config.VAULTWARDEN_URL,
+            version_response = requests.get(
+                f"{Config.VAULTWARDEN_URL}/api/version",
                 timeout=5,
                 verify=True
             )
-            # Check for Server header which might contain version
-            server_header = root_response.headers.get('Server', '')
-            if 'Rocket' in server_header:
-                version_info = 'Rocket (Vaultwarden)'
+            if version_response.status_code == 200:
+                version_data = version_response.json()
+                # The response might be just a string or a dict with version info
+                if isinstance(version_data, str):
+                    version_info = version_data
+                elif isinstance(version_data, dict):
+                    version_info = version_data.get('version', version_data.get('server_version', 'Unknown'))
+                else:
+                    version_info = str(version_data)
         except:
-            pass
+            # If version endpoint fails, fall back to checking headers
+            try:
+                root_response = requests.get(
+                    Config.VAULTWARDEN_URL,
+                    timeout=5,
+                    verify=True
+                )
+                server_header = root_response.headers.get('Server', '')
+                if 'Rocket' in server_header:
+                    version_info = 'Rocket (Vaultwarden)'
+            except:
+                pass
 
         return {
             'online': online,
