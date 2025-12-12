@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import Config
-from utils import get_file_info, format_bytes, run_command, is_safe_path
+from utils import get_file_info, format_bytes, run_command
 
 logger = logging.getLogger(__name__)
 
@@ -237,16 +237,34 @@ def get_system_status():
 
 
 def verify_backup(backup_path):
-    """Verify a backup file."""
+    """
+    Verify a backup file.
+
+    Args:
+        backup_path: Path to backup file (must be a string path that was
+                     validated by get_safe_path in the caller)
+    """
     script = Config.SCRIPTS_DIR / 'verify-backup.sh'
     if not script.exists():
         return {'success': False, 'error': 'Verification script not found'}
 
-    # Validate path to prevent path traversal
-    if not is_safe_path(Config.BACKUP_DIR, backup_path):
+    # Convert to Path and validate it's within BACKUP_DIR
+    # This is defense-in-depth - caller should have already validated
+    try:
+        backup_file = Path(backup_path).resolve()
+        backup_dir = Config.BACKUP_DIR.resolve()
+        if not backup_file.is_relative_to(backup_dir):
+            logger.error(f"Backup path outside allowed directory: {backup_path}")
+            return {'success': False, 'error': 'Invalid backup path'}
+        if not backup_file.exists():
+            return {'success': False, 'error': 'Backup file not found'}
+    except (ValueError, OSError) as e:
+        logger.error(f"Invalid backup path: {e}")
         return {'success': False, 'error': 'Invalid backup path'}
 
-    cmd = ['./verify-backup.sh', str(backup_path)]
+    # Use only the filename for the script argument, not full path
+    # The script runs in SCRIPTS_DIR and expects paths relative to backup location
+    cmd = ['./verify-backup.sh', str(backup_file)]
     result = run_command(cmd, timeout=60)
 
     return {
@@ -287,19 +305,43 @@ def create_backup():
 
 
 def restore_backup(backup_file, skip_backup=False, force=False):
-    """Restore from a backup file."""
+    """
+    Restore from a backup file.
+
+    Args:
+        backup_file: Path object to backup file (must be validated by get_safe_path in caller)
+        skip_backup: Skip creating backup before restore
+        force: Force restore without confirmation
+    """
     script = Config.SCRIPTS_DIR / 'restore-vault.sh'
     if not script.exists():
         return {'success': False, 'error': 'Restore script not found'}
 
+    # Validate the backup file path is within BACKUP_DIR
+    # Defense-in-depth - caller should have already validated
+    try:
+        if isinstance(backup_file, str):
+            backup_path = Path(backup_file).resolve()
+        else:
+            backup_path = Path(backup_file).resolve()
+        backup_dir = Config.BACKUP_DIR.resolve()
+        if not backup_path.is_relative_to(backup_dir):
+            logger.error(f"Restore path outside allowed directory: {backup_file}")
+            return {'success': False, 'error': 'Invalid backup path'}
+        if not backup_path.exists():
+            return {'success': False, 'error': 'Backup file not found'}
+    except (ValueError, OSError) as e:
+        logger.error(f"Invalid backup path: {e}")
+        return {'success': False, 'error': 'Invalid backup path'}
+
     # Build restore command with proper arguments
-    cmd = ['./restore-vault.sh', str(backup_file)]
+    cmd = ['./restore-vault.sh', str(backup_path)]
     if skip_backup:
         cmd.append('--skip-backup')
     if force:
         cmd.append('--force')
 
-    logger.info(f"Starting restore from: {backup_file}")
+    logger.info(f"Starting restore from: {backup_path.name}")
     result = run_command(cmd, timeout=Config.LONG_COMMAND_TIMEOUT)
 
     if result['success']:

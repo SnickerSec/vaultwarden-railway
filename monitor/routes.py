@@ -9,7 +9,7 @@ from flask import Blueprint, render_template, jsonify, request, send_file
 from werkzeug.security import check_password_hash
 
 from config import Config
-from utils import sanitize_filename, is_safe_path
+from utils import get_safe_path
 from services import (
     get_backups, get_logs, get_system_status,
     verify_backup, create_backup, restore_backup
@@ -119,25 +119,16 @@ def api_verify_backup():
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
-        # Sanitize filename first - only use basename to prevent directory traversal
-        safe_filename = sanitize_filename(backup_path)
-        if not safe_filename or safe_filename != backup_path:
+        # Use get_safe_path to securely construct and validate the file path
+        safe_path = get_safe_path(Config.BACKUP_DIR, backup_path)
+        if safe_path is None:
             return jsonify({'success': False, 'error': 'Invalid backup filename'}), 400
 
-        # Create safe path within backup directory
-        backup_file = Config.BACKUP_DIR / safe_filename
-
-        # Double-check path is safe
-        if not is_safe_path(Config.BACKUP_DIR, backup_file):
-            return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
-
-        # Safe: path validated by is_safe_path() above
-        # lgtm[py/path-injection]
-        if not backup_file.exists():
+        if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
-        logger.info(f"Verifying backup: {backup_file.name}")
-        result = verify_backup(str(backup_file))
+        logger.info(f"Verifying backup: {safe_path.name}")
+        result = verify_backup(str(safe_path))
 
         return jsonify(result)
 
@@ -162,24 +153,15 @@ def api_restore_backup():
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
 
-        # Sanitize filename first - only use basename to prevent directory traversal
-        safe_filename = sanitize_filename(backup_path)
-        if not safe_filename or safe_filename != backup_path:
+        # Use get_safe_path to securely construct and validate the file path
+        safe_path = get_safe_path(Config.BACKUP_DIR, backup_path)
+        if safe_path is None:
             return jsonify({'success': False, 'error': 'Invalid backup filename'}), 400
 
-        # Create safe path within backup directory
-        backup_file = Config.BACKUP_DIR / safe_filename
-
-        # Double-check path is safe
-        if not is_safe_path(Config.BACKUP_DIR, backup_file):
-            return jsonify({'success': False, 'error': 'Invalid backup path'}), 400
-
-        # Safe: path validated by is_safe_path() above
-        # lgtm[py/path-injection]
-        if not backup_file.exists():
+        if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
-        result = restore_backup(backup_file, skip_backup=skip_backup, force=force)
+        result = restore_backup(safe_path, skip_backup=skip_backup, force=force)
 
         if result['success']:
             return jsonify(result)
@@ -225,26 +207,17 @@ def api_download_log(log_type, filename):
         else:
             return jsonify({'success': False, 'error': 'Invalid log type'}), 400
 
-        # Sanitize filename - only use basename to prevent directory traversal
-        safe_filename = sanitize_filename(filename)
-        if not safe_filename or safe_filename != filename:
+        # Use get_safe_path to securely construct and validate the file path
+        # This function sanitizes the filename and ensures it stays within log_dir
+        safe_path = get_safe_path(log_dir, filename)
+        if safe_path is None:
             return jsonify({'success': False, 'error': 'Invalid filename'}), 400
 
-        # Create safe path within log directory
-        log_file = log_dir / safe_filename
-
-        # Double-check path is safe
-        if not is_safe_path(log_dir, log_file):
-            return jsonify({'success': False, 'error': 'Invalid file path'}), 400
-
-        # Safe: path validated by is_safe_path() above
-        # lgtm[py/path-injection]
-        if not log_file.exists():
+        # safe_path is now a validated Path object within log_dir
+        if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Log file not found'}), 404
 
-        # Safe: path validated by is_safe_path() above
-        # lgtm[py/path-injection]
-        return send_file(log_file, as_attachment=True)
+        return send_file(safe_path, as_attachment=True)
 
     except Exception as e:
         logger.error(f"Error downloading log: {e}")

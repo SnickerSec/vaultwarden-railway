@@ -27,27 +27,81 @@ def sanitize_filename(filename):
     return safe_name
 
 
+def get_safe_path(base_dir, filename):
+    """
+    Safely construct a path within base_dir from an untrusted filename.
+    Returns the safe resolved path if valid, None otherwise.
+
+    This function is a security barrier that:
+    1. Extracts only the basename from the input (strips directory components)
+    2. Constructs the path within base_dir
+    3. Validates the resolved path stays within base_dir
+
+    Args:
+        base_dir: The allowed base directory (trusted)
+        filename: User-provided filename (untrusted)
+
+    Returns:
+        Path object if safe, None otherwise
+    """
+    try:
+        # Reject empty or invalid input
+        if not filename or not isinstance(filename, str):
+            return None
+
+        # Remove null bytes
+        filename = filename.replace('\x00', '')
+
+        # Extract only the basename - this is the key security step
+        # os.path.basename strips all directory components, preventing traversal
+        safe_name = os.path.basename(filename)
+
+        # Reject if basename is empty or different from input (had path components)
+        if not safe_name or safe_name != filename:
+            return None
+
+        # Additional safety: reject names with suspicious patterns
+        if '..' in safe_name or safe_name.startswith('.'):
+            return None
+
+        # Construct the full path within the base directory
+        base = Path(base_dir).resolve()
+        # Join using the trusted base and sanitized filename
+        full_path = base / safe_name
+
+        # Final validation: ensure resolved path is within base
+        resolved = full_path.resolve()
+        if not resolved.is_relative_to(base):
+            return None
+
+        return resolved
+    except (ValueError, OSError, RuntimeError):
+        return None
+
+
 def is_safe_path(base_dir, user_path):
     """
     Validate that a user-provided path is within the allowed base directory.
     Prevents path traversal attacks.
 
-    This function is a security barrier that validates paths before file operations.
+    DEPRECATED: Use get_safe_path() instead for new code.
+    This function is kept for backwards compatibility.
     """
     try:
-        # Sanitize the input first
         if not user_path or not isinstance(user_path, (str, Path)):
             return False
 
         base = Path(base_dir).resolve()
-        # Convert to Path but catch any issues with malicious input
-        if isinstance(user_path, str):
-            # Remove null bytes and normalize
-            # lgtm[py/path-injection]
-            user_path = user_path.replace('\x00', '')
 
-        # lgtm[py/path-injection]
-        target = Path(user_path).resolve()
+        if isinstance(user_path, Path):
+            target = user_path.resolve()
+        else:
+            # For string paths, use get_safe_path logic
+            safe_name = os.path.basename(str(user_path).replace('\x00', ''))
+            if not safe_name:
+                return False
+            target = (base / safe_name).resolve()
+
         return target.is_relative_to(base)
     except (ValueError, OSError, RuntimeError):
         return False
