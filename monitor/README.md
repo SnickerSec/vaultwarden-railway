@@ -174,14 +174,34 @@ curl -X POST http://localhost:5000/api/backups/restore \
 
 ```
 monitor/
-├── app.py              # Flask backend
+├── app.py              # Flask application factory
+├── config.py           # Configuration management
+├── routes.py           # API route handlers
+├── services.py         # Business logic layer
+├── utils.py            # Utility functions
 ├── templates/
-│   └── index.html     # Single-page dashboard
-├── requirements.txt   # Python dependencies
-├── Dockerfile         # Container config
-├── setup.sh          # Setup script
-├── .env.example      # Example configuration
-└── README.md         # This file
+│   └── index.html      # Single-page dashboard
+├── tests/
+│   ├── conftest.py     # Pytest configuration
+│   ├── test_routes.py  # Route tests
+│   └── test_utils.py   # Utility function tests
+├── requirements.txt    # Python dependencies
+├── Dockerfile          # Container config
+├── setup.sh            # Setup script
+├── .env.example        # Example configuration
+└── README.md           # This file
+```
+
+### Running Tests
+
+```bash
+# Create virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run tests
+pytest tests/ -v
 ```
 
 ### Technologies
@@ -259,6 +279,13 @@ railway link
 6. **Monitor access logs** for suspicious activity
 7. **Keep dependencies updated**
 
+### Security Features
+
+- **Path Traversal Protection**: All file operations use `werkzeug.utils.secure_filename` for sanitization
+- **Command Injection Prevention**: Shell commands use whitelist validation and `shell=False`
+- **Password Hashing**: Admin password stored using Werkzeug's secure hash functions
+- **Input Validation**: All user inputs are validated before use
+
 ## Production Checklist
 
 - [ ] Set strong admin password
@@ -294,6 +321,5 @@ Part of the Vaultwarden Railway deployment project.
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: January 13, 2025
-# Monitor deployment Mon Dec  1 10:34:43 HST 2025
+**Version**: 1.1.0
+**Last Updated**: December 12, 2025

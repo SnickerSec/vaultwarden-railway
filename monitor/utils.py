@@ -15,20 +15,6 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 
-def sanitize_filename(filename):
-    """
-    Sanitize a filename by removing path traversal sequences and invalid characters.
-    Returns only the basename, preventing directory traversal.
-    """
-    # Remove any path components, only keep filename
-    safe_name = os.path.basename(filename)
-    # Remove any remaining path separators
-    safe_name = safe_name.replace('/', '').replace('\\', '')
-    # Remove null bytes and other dangerous characters
-    safe_name = safe_name.replace('\x00', '').replace('..', '')
-    return safe_name
-
-
 def get_safe_path(base_dir, filename):
     """
     Safely construct a path within base_dir from an untrusted filename.
@@ -70,34 +56,6 @@ def get_safe_path(base_dir, filename):
         return resolved
     except (ValueError, OSError, RuntimeError):
         return None
-
-
-def is_safe_path(base_dir, user_path):
-    """
-    Validate that a user-provided path is within the allowed base directory.
-    Prevents path traversal attacks.
-
-    DEPRECATED: Use get_safe_path() instead for new code.
-    This function is kept for backwards compatibility.
-    """
-    try:
-        if not user_path or not isinstance(user_path, (str, Path)):
-            return False
-
-        base = Path(base_dir).resolve()
-
-        if isinstance(user_path, Path):
-            target = user_path.resolve()
-        else:
-            # For string paths, use get_safe_path logic
-            safe_name = os.path.basename(str(user_path).replace('\x00', ''))
-            if not safe_name:
-                return False
-            target = (base / safe_name).resolve()
-
-        return target.is_relative_to(base)
-    except (ValueError, OSError, RuntimeError):
-        return False
 
 
 def run_command(cmd, timeout=None):
