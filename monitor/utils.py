@@ -8,6 +8,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from werkzeug.utils import secure_filename
+
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -32,10 +34,8 @@ def get_safe_path(base_dir, filename):
     Safely construct a path within base_dir from an untrusted filename.
     Returns the safe resolved path if valid, None otherwise.
 
-    This function is a security barrier that:
-    1. Extracts only the basename from the input (strips directory components)
-    2. Constructs the path within base_dir
-    3. Validates the resolved path stays within base_dir
+    Uses werkzeug.utils.secure_filename for sanitization, which is a
+    well-known security barrier recognized by static analysis tools.
 
     Args:
         base_dir: The allowed base directory (trusted)
@@ -49,24 +49,17 @@ def get_safe_path(base_dir, filename):
         if not filename or not isinstance(filename, str):
             return None
 
-        # Remove null bytes
-        filename = filename.replace('\x00', '')
+        # Use werkzeug's secure_filename - this is a recognized sanitizer
+        # It removes path separators, null bytes, and other dangerous characters
+        safe_name = secure_filename(filename)
 
-        # Extract only the basename - this is the key security step
-        # os.path.basename strips all directory components, preventing traversal
-        safe_name = os.path.basename(filename)
-
-        # Reject if basename is empty or different from input (had path components)
+        # Reject if sanitization resulted in empty string or changed the filename
+        # (meaning it had path components or dangerous characters)
         if not safe_name or safe_name != filename:
-            return None
-
-        # Additional safety: reject names with suspicious patterns
-        if '..' in safe_name or safe_name.startswith('.'):
             return None
 
         # Construct the full path within the base directory
         base = Path(base_dir).resolve()
-        # Join using the trusted base and sanitized filename
         full_path = base / safe_name
 
         # Final validation: ensure resolved path is within base

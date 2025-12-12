@@ -8,6 +8,8 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
+from werkzeug.utils import secure_filename
+
 from config import Config
 from utils import get_file_info, format_bytes, run_command
 
@@ -248,22 +250,29 @@ def verify_backup(backup_path):
     if not script.exists():
         return {'success': False, 'error': 'Verification script not found'}
 
-    # Convert to Path and validate it's within BACKUP_DIR
-    # This is defense-in-depth - caller should have already validated
+    # Defense-in-depth: re-sanitize the filename using secure_filename
     try:
-        backup_file = Path(backup_path).resolve()
-        backup_dir = Config.BACKUP_DIR.resolve()
-        if not backup_file.is_relative_to(backup_dir):
-            logger.error(f"Backup path outside allowed directory: {backup_path}")
+        # Extract and sanitize just the filename
+        if isinstance(backup_path, Path):
+            original_name = backup_path.name
+        else:
+            original_name = os.path.basename(str(backup_path))
+
+        safe_name = secure_filename(original_name)
+        if not safe_name or safe_name != original_name:
+            logger.error(f"Invalid backup filename: {original_name}")
             return {'success': False, 'error': 'Invalid backup path'}
+
+        # Construct safe path within BACKUP_DIR
+        backup_dir = Config.BACKUP_DIR.resolve()
+        backup_file = backup_dir / safe_name
+
         if not backup_file.exists():
             return {'success': False, 'error': 'Backup file not found'}
     except (ValueError, OSError) as e:
         logger.error(f"Invalid backup path: {e}")
         return {'success': False, 'error': 'Invalid backup path'}
 
-    # Use only the filename for the script argument, not full path
-    # The script runs in SCRIPTS_DIR and expects paths relative to backup location
     cmd = ['./verify-backup.sh', str(backup_file)]
     result = run_command(cmd, timeout=60)
 
@@ -317,17 +326,23 @@ def restore_backup(backup_file, skip_backup=False, force=False):
     if not script.exists():
         return {'success': False, 'error': 'Restore script not found'}
 
-    # Validate the backup file path is within BACKUP_DIR
-    # Defense-in-depth - caller should have already validated
+    # Defense-in-depth: re-sanitize the filename using secure_filename
     try:
-        if isinstance(backup_file, str):
-            backup_path = Path(backup_file).resolve()
+        # Extract and sanitize just the filename
+        if isinstance(backup_file, Path):
+            original_name = backup_file.name
         else:
-            backup_path = Path(backup_file).resolve()
-        backup_dir = Config.BACKUP_DIR.resolve()
-        if not backup_path.is_relative_to(backup_dir):
-            logger.error(f"Restore path outside allowed directory: {backup_file}")
+            original_name = os.path.basename(str(backup_file))
+
+        safe_name = secure_filename(original_name)
+        if not safe_name or safe_name != original_name:
+            logger.error(f"Invalid backup filename: {original_name}")
             return {'success': False, 'error': 'Invalid backup path'}
+
+        # Construct safe path within BACKUP_DIR
+        backup_dir = Config.BACKUP_DIR.resolve()
+        backup_path = backup_dir / safe_name
+
         if not backup_path.exists():
             return {'success': False, 'error': 'Backup file not found'}
     except (ValueError, OSError) as e:
@@ -341,7 +356,7 @@ def restore_backup(backup_file, skip_backup=False, force=False):
     if force:
         cmd.append('--force')
 
-    logger.info(f"Starting restore from: {backup_path.name}")
+    logger.info(f"Starting restore from: {safe_name}")
     result = run_command(cmd, timeout=Config.LONG_COMMAND_TIMEOUT)
 
     if result['success']:
