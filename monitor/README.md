@@ -1,42 +1,16 @@
 # Vaultwarden Backup Monitoring Dashboard
 
-A beautiful, responsive web dashboard for monitoring and managing Vaultwarden database backups.
+A web dashboard for monitoring and managing Vaultwarden database backups.
 
 ## Features
 
-✨ **Real-time Monitoring**
-- System status at a glance
-- Backup count and storage size
-- Latest backup information
-- Dependency verification (Railway CLI, PostgreSQL)
-
-🔄 **Backup Management**
-- Create backups with one click
-- List all available backups
-- Verify backup integrity
-- View backup details (size, age, permissions)
-
-↻ **Restore Operations**
-- Point-and-click restore
-- Pre-restore safety backups
-- Confirmation dialogs
-- Real-time progress
-
-📊 **Log Viewer**
-- Recent restore logs
-- Verification logs
-- Log preview and download
-
-🔒 **Secure**
-- Password-protected operations
-- Hashed credentials
-- Session management
-- Path traversal protection
-
-📱 **Responsive Design**
-- Works on desktop and mobile
-- Dark theme
-- Modern UI
+- Real-time system status (Vaultwarden online/version, backup count, storage)
+- One-click backup creation, verification, and restore
+- Backup deletion with confirmation
+- Restore and verification log viewer
+- Webhook notifications for backup/restore failures
+- Session-based authentication with rate limiting
+- Responsive dark-theme UI
 
 ## Quick Start
 
@@ -44,282 +18,152 @@ A beautiful, responsive web dashboard for monitoring and managing Vaultwarden da
 
 ```bash
 cd monitor
-./setup.sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-This will:
-- Create a Python virtual environment
-- Install Flask and dependencies
-- Generate secure configuration
-- Prompt you to set an admin password
-
-### 2. Run
+### 2. Configure
 
 ```bash
-source venv/bin/activate
-python app.py
+# Generate a password hash
+python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('your-password'))"
+
+# Set required environment variables
+export MONITOR_PASSWORD_HASH='<paste-hash-here>'
+export MONITOR_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 ```
 
-### 3. Access
+### 3. Run
 
-Open your browser to: **http://localhost:5000**
+```bash
+python3 app.py
+```
+
+Open **http://localhost:5000** and log in with your password.
 
 ## Configuration
 
-Edit `.env` file (created by setup.sh):
+All configuration is via environment variables:
 
-```bash
-# Admin password hash
-MONITOR_PASSWORD_HASH=scrypt:32768:8:1$...
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MONITOR_PASSWORD_HASH` | Yes | — | Werkzeug password hash |
+| `MONITOR_SECRET_KEY` | No | Random | Session secret key |
+| `MONITOR_PORT` | No | `5000` | Server port |
+| `MONITOR_DEBUG` | No | `false` | Debug mode |
+| `VAULTWARDEN_URL` | No | — | Vaultwarden instance URL for status checks |
+| `BACKUP_DIR` | No | `../backups` | Backup storage directory |
+| `SCRIPTS_DIR` | No | `../scripts` | Shell scripts directory |
+| `NOTIFICATION_WEBHOOK_URL` | No | — | Webhook URL for failure notifications |
 
-# Secret key for sessions
-MONITOR_SECRET_KEY=your-secret-key-here
-
-# Server settings
-MONITOR_PORT=5000
-MONITOR_DEBUG=false
-
-# Directory paths
-BACKUP_DIR=../backups
-RESTORE_LOG_DIR=../restore-logs
-VERIFICATION_LOG_DIR=../verification-logs
-SCRIPTS_DIR=../scripts
-```
-
-## Changing Admin Password
-
-```bash
-# Generate new password hash
-python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('new-password'))"
-
-# Update MONITOR_PASSWORD_HASH in .env
-```
-
-## Docker Deployment
-
-### Build
+## Docker
 
 ```bash
 docker build -t vaultwarden-monitor .
-```
-
-### Run
-
-```bash
 docker run -d \
   --name vaultwarden-monitor \
   -p 5000:5000 \
-  -v $(pwd)/../backups:/backups \
-  -v $(pwd)/../scripts:/scripts \
-  -v $(pwd)/../restore-logs:/restore-logs \
-  -v $(pwd)/../verification-logs:/verification-logs \
-  -e MONITOR_PASSWORD_HASH="your-hash" \
-  -e MONITOR_SECRET_KEY="your-secret" \
+  -v /path/to/backups:/backups \
+  -v /path/to/scripts:/scripts \
+  -e MONITOR_PASSWORD_HASH="<your-hash>" \
+  -e MONITOR_SECRET_KEY="<your-secret>" \
   vaultwarden-monitor
 ```
 
 ## Railway Deployment
 
-1. Add new service in Railway
-2. Set root directory to `/monitor`
-3. Add environment variables:
-   - `MONITOR_PASSWORD_HASH`
-   - `MONITOR_SECRET_KEY`
-   - `DATABASE_URL` (reference from Postgres service)
-4. Deploy
+See [docs/MONITOR-DEPLOYMENT.md](../docs/MONITOR-DEPLOYMENT.md) for the full deployment guide.
 
-## API Documentation
+## API
 
-See [MONITORING.md](../docs/MONITORING.md) for complete API documentation.
+All API endpoints are under `/api/`. Protected endpoints require session authentication.
 
-### Quick Examples
+### Authentication
 
 ```bash
-# Get system status
+# Login (creates session)
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"password": "your-password"}'
+
+# Logout
+curl -X POST http://localhost:5000/api/logout
+```
+
+### Endpoints (require auth)
+
+```bash
+# System status
 curl http://localhost:5000/api/status
 
 # List backups
 curl http://localhost:5000/api/backups
 
 # Create backup
-curl -X POST http://localhost:5000/api/backups/create \
-  -H "Content-Type: application/json" \
-  -d '{"password":"admin"}'
+curl -X POST http://localhost:5000/api/backups/create
 
 # Verify backup
 curl -X POST http://localhost:5000/api/backups/verify \
   -H "Content-Type: application/json" \
-  -d '{"backup_path":"/backups/backup.sql.gz"}'
+  -d '{"backup_path": "backup_20250101.sql.gz"}'
 
-# Restore backup
+# Restore from backup
 curl -X POST http://localhost:5000/api/backups/restore \
   -H "Content-Type: application/json" \
-  -d '{"password":"admin","backup_path":"/backups/backup.sql.gz","force":true}'
+  -d '{"backup_path": "backup_20250101.sql.gz", "force": true}'
+
+# Delete backup
+curl -X POST http://localhost:5000/api/backups/delete \
+  -H "Content-Type: application/json" \
+  -d '{"backup_path": "backup_20250101.sql.gz"}'
 ```
 
-## Screenshots
+### Public Endpoints
 
-### Main Dashboard
-![Dashboard showing system status, backup list, and quick actions]
+```bash
+# Health check
+curl http://localhost:5000/health
+```
 
-### Backup Creation
-![Modal dialog for creating a new backup with password authentication]
+## Running Tests
 
-### Restore Interface
-![Restore dialog with safety options and warnings]
+```bash
+cd monitor
+MONITOR_PASSWORD_HASH='pbkdf2:sha256:600000$test$test' python3 -m pytest tests/ -v
+```
 
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 monitor/
 ├── app.py              # Flask application factory
-├── config.py           # Configuration management
+├── config.py           # Configuration from env vars
+├── extensions.py       # Flask extensions (CSRF, rate limiter)
 ├── routes.py           # API route handlers
 ├── services.py         # Business logic layer
 ├── utils.py            # Utility functions
 ├── templates/
 │   └── index.html      # Single-page dashboard
 ├── tests/
-│   ├── conftest.py     # Pytest configuration
+│   ├── conftest.py     # Pytest fixtures
 │   ├── test_routes.py  # Route tests
 │   └── test_utils.py   # Utility function tests
 ├── requirements.txt    # Python dependencies
 ├── Dockerfile          # Container config
-├── setup.sh            # Setup script
-├── .env.example        # Example configuration
-└── README.md           # This file
+└── .env.example        # Example configuration
 ```
 
-### Running Tests
+## Security
 
-```bash
-# Create virtual environment and install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Run tests
-pytest tests/ -v
-```
-
-### Technologies
-
-- **Backend**: Flask (Python)
-- **Frontend**: Vanilla JavaScript, CSS3
-- **Authentication**: Werkzeug password hashing
-- **Integration**: Subprocess calls to bash scripts
-
-### Adding Features
-
-1. Add API endpoint in `app.py`
-2. Add frontend function in `templates/index.html`
-3. Test locally
-4. Update documentation
-
-## Troubleshooting
-
-### Port Already in Use
-
-```bash
-# Change port in .env
-MONITOR_PORT=5001
-
-# Or set environment variable
-export MONITOR_PORT=5001
-python app.py
-```
-
-### Script Not Found
-
-```bash
-# Check scripts directory
-ls -la ../scripts/
-
-# Make scripts executable
-chmod +x ../scripts/*.sh
-
-# Verify path in .env
-echo $SCRIPTS_DIR
-```
-
-### Permission Denied
-
-```bash
-# Fix script permissions
-chmod +x ../scripts/*.sh
-
-# Fix backup directory
-chmod 755 ../backups/
-```
-
-### Railway CLI Not Found
-
-```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login
-railway login
-
-# Link project
-railway link
-```
-
-## Security Notes
-
-⚠️ **Important Security Considerations:**
-
-1. **Never expose to public internet without HTTPS**
-2. **Use strong admin password** (12+ characters)
-3. **Rotate secret key** periodically
-4. **Use reverse proxy** (nginx/caddy) in production
-5. **Restrict network access** with firewall rules
-6. **Monitor access logs** for suspicious activity
-7. **Keep dependencies updated**
-
-### Security Features
-
-- **Path Traversal Protection**: All file operations use `werkzeug.utils.secure_filename` for sanitization
-- **Command Injection Prevention**: Shell commands use whitelist validation and `shell=False`
-- **Password Hashing**: Admin password stored using Werkzeug's secure hash functions
-- **Input Validation**: All user inputs are validated before use
-
-## Production Checklist
-
-- [ ] Set strong admin password
-- [ ] Generate new secret key
-- [ ] Disable debug mode (`MONITOR_DEBUG=false`)
-- [ ] Set up HTTPS (reverse proxy)
-- [ ] Configure firewall rules
-- [ ] Set up monitoring/alerts
-- [ ] Regular security updates
-- [ ] Backup configuration files
-
-## Performance
-
-- **Memory**: ~50-100 MB
-- **CPU**: Minimal (spikes during operations)
-- **Startup**: < 5 seconds
-- **Response time**: < 100ms (status/list)
-- **Backup time**: 10-60 seconds
-- **Restore time**: 1-5 minutes
-
-## Support
-
-For issues or questions:
-
-1. Check [MONITORING.md](../docs/MONITORING.md) documentation
-2. Review application logs
-3. Check GitHub issues
-4. Create new issue with details
+- Session-based auth with secure cookies (HttpOnly, Secure, SameSite)
+- Login rate limiting (5 attempts/minute)
+- CSP with per-request nonces (no unsafe-inline)
+- Path traversal prevention via `secure_filename()` + `get_safe_path()`
+- Command injection prevention: `shell=False` + command whitelist
+- Non-root Docker container user
+- 30-minute session timeout
 
 ## License
 
 Part of the Vaultwarden Railway deployment project.
-
----
-
-**Version**: 1.1.0
-**Last Updated**: December 12, 2025

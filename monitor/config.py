@@ -38,6 +38,9 @@ class Config:
         'which'
     ]
 
+    # Notifications (optional — Discord, Slack, or any webhook that accepts JSON POST)
+    NOTIFICATION_WEBHOOK_URL = os.environ.get('NOTIFICATION_WEBHOOK_URL', '')
+
     # Timeouts
     DEFAULT_COMMAND_TIMEOUT = 300  # 5 minutes
     SHORT_COMMAND_TIMEOUT = 5

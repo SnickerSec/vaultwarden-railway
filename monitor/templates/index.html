@@ -857,8 +857,14 @@
                 restoreBtn.textContent = '↻ Restore';
                 restoreBtn.addEventListener('click', () => showRestoreModal(backup.name, backup.name));
 
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-secondary';
+                deleteBtn.textContent = '✕ Delete';
+                deleteBtn.addEventListener('click', () => deleteBackup(backup.name));
+
                 actions.appendChild(verifyBtn);
                 actions.appendChild(restoreBtn);
+                actions.appendChild(deleteBtn);
 
                 item.appendChild(header);
                 item.appendChild(info);
@@ -946,6 +952,32 @@
                 refreshLogs();
             } catch (error) {
                 showAlert('Error verifying backup: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteBackup(backupName) {
+            if (!confirm(`Delete backup "${backupName}"? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/backups/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ backup_path: backupName })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Backup deleted successfully', 'success');
+                    refreshBackups();
+                    refreshStatus();
+                } else {
+                    showAlert('Error deleting backup: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error deleting backup: ' + error.message, 'error');
             }
         }
 

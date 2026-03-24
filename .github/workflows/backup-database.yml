@@ -53,8 +53,26 @@ jobs:
 
           echo "DATABASE_URL is configured"
 
-          # Create backup using pg_dump 17 with flags to avoid permission issues
-          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl > "$BACKUP_FILE"
+          # Create backup using pg_dump 17 with retry for transient failures
+          MAX_RETRIES=3
+          RETRY_DELAY=10
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Backup attempt $attempt of $MAX_RETRIES..."
+            if /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl > "$BACKUP_FILE" 2>/tmp/pg_dump_err; then
+              echo "pg_dump succeeded on attempt $attempt"
+              break
+            fi
+            echo "pg_dump failed on attempt $attempt:"
+            cat /tmp/pg_dump_err
+            if [ "$attempt" -eq "$MAX_RETRIES" ]; then
+              echo "All $MAX_RETRIES attempts failed"
+              cat /tmp/pg_dump_err >&2
+              exit 1
+            fi
+            echo "Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+            RETRY_DELAY=$((RETRY_DELAY * 2))
+          done
 
           # Compress backup
           gzip "$BACKUP_FILE"

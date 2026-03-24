@@ -16,6 +16,22 @@ from utils import get_file_info, format_bytes, run_command
 logger = logging.getLogger(__name__)
 
 
+def send_notification(title, message):
+    """Send a webhook notification if configured."""
+    if not Config.NOTIFICATION_WEBHOOK_URL:
+        return
+
+    try:
+        payload = {'content': f'**{title}**\n{message}'}
+        requests.post(
+            Config.NOTIFICATION_WEBHOOK_URL,
+            json=payload,
+            timeout=10
+        )
+    except requests.RequestException as e:
+        logger.error(f"Failed to send notification: {e}")
+
+
 def get_latest_vaultwarden_version():
     """Get the latest Vaultwarden version from GitHub releases."""
     try:
@@ -307,6 +323,7 @@ def create_backup():
     else:
         error_msg = result.get('stderr', 'Unknown error')
         logger.error(f"Backup failed: {error_msg}")
+        send_notification('Backup Failed', f'Manual backup creation failed: {error_msg}')
         return {
             'success': False,
             'error': f'Backup creation failed: {error_msg}'
@@ -368,6 +385,7 @@ def restore_backup(backup_file, skip_backup=False, force=False):
         }
     else:
         logger.error(f"Restore failed: {result['stderr']}")
+        send_notification('Restore Failed', f'Restore from {safe_name} failed')
         return {
             'success': False,
             'error': 'Restore operation failed'

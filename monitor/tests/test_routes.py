@@ -178,6 +178,57 @@ class TestBackupRestore:
         assert response.status_code == 400
 
 
+class TestBackupDelete:
+    """Tests for backup delete endpoint."""
+
+    def test_delete_requires_auth(self, client):
+        """Test that delete requires authentication."""
+        response = client.post('/api/backups/delete',
+                               json={'backup_path': 'test.sql.gz'},
+                               content_type='application/json')
+        assert response.status_code == 401
+
+    def test_delete_requires_backup_path(self, auth_client):
+        """Test that delete requires backup_path."""
+        response = auth_client.post('/api/backups/delete',
+                                    json={},
+                                    content_type='application/json')
+        assert response.status_code == 400
+
+    def test_delete_rejects_path_traversal(self, auth_client):
+        """Test that delete rejects path traversal."""
+        response = auth_client.post('/api/backups/delete',
+                                    json={'backup_path': '../../../etc/passwd'},
+                                    content_type='application/json')
+        assert response.status_code == 400
+
+    def test_delete_nonexistent_file(self, auth_client):
+        """Test that delete handles nonexistent files."""
+        response = auth_client.post('/api/backups/delete',
+                                    json={'backup_path': 'nonexistent.sql.gz'},
+                                    content_type='application/json')
+        assert response.status_code == 404
+
+    def test_delete_existing_backup(self, auth_client, tmp_path, monkeypatch):
+        """Test successful backup deletion."""
+        from config import Config
+        backup_dir = tmp_path / 'backups'
+        backup_dir.mkdir(exist_ok=True)
+        monkeypatch.setattr(Config, 'BACKUP_DIR', backup_dir)
+
+        # Create a test backup file
+        test_file = backup_dir / 'test_backup.sql.gz'
+        test_file.write_text('fake backup data')
+
+        response = auth_client.post('/api/backups/delete',
+                                    json={'backup_path': 'test_backup.sql.gz'},
+                                    content_type='application/json')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert not test_file.exists()
+
+
 class TestLogEndpoints:
     """Tests for log endpoints."""
 
@@ -213,6 +264,65 @@ class TestLogEndpoints:
         """Test that download handles nonexistent files."""
         response = auth_client.get('/api/logs/download/restore/nonexistent.log')
         assert response.status_code in [400, 404]
+
+
+class TestRateLimiting:
+    """Tests for login rate limiting."""
+
+    def test_login_rate_limit(self, app):
+        """Test that login is rate limited after 5 attempts."""
+        # Need a fresh client per request to avoid session reuse,
+        # but rate limiting is by IP so same client works
+        client = app.test_client()
+        for i in range(5):
+            response = client.post('/api/login',
+                                   json={'password': 'wrong'},
+                                   content_type='application/json')
+            assert response.status_code == 401, f"Attempt {i+1} should return 401"
+
+        # 6th attempt should be rate limited
+        response = client.post('/api/login',
+                               json={'password': 'wrong'},
+                               content_type='application/json')
+        assert response.status_code == 429
+
+
+class TestSecurityHeaders:
+    """Tests for security headers and CSP nonces."""
+
+    def test_csp_nonce_in_headers(self, client):
+        """Test that CSP header contains a nonce."""
+        response = client.get('/')
+        csp = response.headers.get('Content-Security-Policy', '')
+        assert "'nonce-" in csp
+        assert "'unsafe-inline'" not in csp
+
+    def test_csp_nonce_in_html(self, client):
+        """Test that the nonce appears in style and script tags."""
+        response = client.get('/')
+        html = response.data.decode()
+        # Extract nonce from CSP header
+        csp = response.headers.get('Content-Security-Policy', '')
+        nonce = csp.split("'nonce-")[1].split("'")[0]
+        assert f'nonce="{nonce}"' in html
+
+    def test_security_headers_present(self, client):
+        """Test that all security headers are set."""
+        response = client.get('/')
+        assert response.headers.get('X-Frame-Options') == 'DENY'
+        assert response.headers.get('X-Content-Type-Options') == 'nosniff'
+        assert 'max-age=' in response.headers.get('Strict-Transport-Security', '')
+        assert response.headers.get('Referrer-Policy') == 'strict-origin-when-cross-origin'
+
+    def test_csp_nonce_changes_per_request(self, client):
+        """Test that CSP nonce is unique per request."""
+        response1 = client.get('/')
+        response2 = client.get('/')
+        csp1 = response1.headers.get('Content-Security-Policy', '')
+        csp2 = response2.headers.get('Content-Security-Policy', '')
+        nonce1 = csp1.split("'nonce-")[1].split("'")[0]
+        nonce2 = csp2.split("'nonce-")[1].split("'")[0]
+        assert nonce1 != nonce2
 
 
 class TestDebugEndpointRemoved:

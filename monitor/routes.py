@@ -193,6 +193,36 @@ def api_restore_backup():
         return jsonify({'success': False, 'error': 'Failed to restore backup'}), 500
 
 
+@api.route('/backups/delete', methods=['POST'])
+@require_auth
+def api_delete_backup():
+    """Delete a backup file."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+
+        backup_path = data.get('backup_path', '')
+
+        if not backup_path:
+            return jsonify({'success': False, 'error': 'Backup path required'}), 400
+
+        safe_path = get_safe_path(Config.BACKUP_DIR, backup_path)
+        if safe_path is None:
+            return jsonify({'success': False, 'error': 'Invalid backup filename'}), 400
+
+        if not safe_path.exists():
+            return jsonify({'success': False, 'error': 'Backup file not found'}), 404
+
+        logger.info(f"Deleting backup: {safe_path.name}")
+        safe_path.unlink()
+        return jsonify({'success': True, 'message': f'Deleted {safe_path.name}'})
+
+    except Exception as e:
+        logger.error(f"Error deleting backup: {e}")
+        return jsonify({'success': False, 'error': 'Failed to delete backup'}), 500
+
+
 @api.route('/logs/restore')
 @require_auth
 def api_restore_logs():
