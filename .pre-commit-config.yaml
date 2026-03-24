@@ -10,4 +10,5 @@ repos:
       - id: bandit
         args: ['-c', 'pyproject.toml', '-r']
         files: ^monitor/.*\.py$
+        exclude: ^monitor/(\.venv|venv)/
         additional_dependencies: ['bandit[toml]']

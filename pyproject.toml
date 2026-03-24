@@ -1,3 +1,3 @@
 [tool.bandit]
-exclude_dirs = ["monitor/tests"]
+exclude_dirs = ["monitor/tests", "monitor/.venv", "monitor/venv"]
 skips = ["B104"]  # B104: binding to 0.0.0.0 — required for container deployments
