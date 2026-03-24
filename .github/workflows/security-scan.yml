@@ -24,7 +24,7 @@ jobs:
         run: docker build -t vaultwarden-monitor:scan -f monitor/Dockerfile monitor/
 
       - name: Run Trivy on monitor image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: 'vaultwarden-monitor:scan'
           format: 'sarif'
@@ -39,7 +39,7 @@ jobs:
           category: 'trivy-monitor'
 
       - name: Run Trivy on vaultwarden image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: 'vaultwarden/server:1.35.4'
           format: 'sarif'
