@@ -4,10 +4,12 @@ Flask route handlers for the Vaultwarden Monitor Dashboard.
 
 import logging
 from datetime import datetime
+from functools import wraps
 
-from flask import Blueprint, render_template, jsonify, request, send_file
+from flask import Blueprint, render_template, jsonify, request, send_file, session, g
 from werkzeug.security import check_password_hash
 
+from extensions import limiter
 from config import Config
 from utils import get_safe_path
 from services import (
@@ -24,18 +26,24 @@ main = Blueprint('main', __name__)
 
 def check_auth(password):
     """Verify admin password."""
-    logger.info(f"check_auth called with password length: {len(password)}")
-    logger.info(f"Hash to check against length: {len(Config.ADMIN_PASSWORD_HASH)}")
-    result = check_password_hash(Config.ADMIN_PASSWORD_HASH, password)
-    logger.info(f"check_password_hash result: {result}")
-    return result
+    return check_password_hash(Config.ADMIN_PASSWORD_HASH, password)
+
+
+def require_auth(f):
+    """Decorator to require session authentication on endpoints."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('authenticated'):
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 
 # Main routes
 @main.route('/')
 def index():
     """Main dashboard page."""
-    return render_template('index.html')
+    return render_template('index.html', csp_nonce=g.csp_nonce)
 
 
 @main.route('/health')
@@ -44,8 +52,40 @@ def health():
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
 
+# Auth routes
+@api.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
+def api_login():
+    """Authenticate and create session."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+
+        password = data.get('password', '')
+
+        if not check_auth(password):
+            logger.warning("Authentication failed")
+            return jsonify({'success': False, 'error': 'Invalid password'}), 401
+
+        session['authenticated'] = True
+        return jsonify({'success': True})
+
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        return jsonify({'success': False, 'error': 'Login failed'}), 500
+
+
+@api.route('/logout', methods=['POST'])
+def api_logout():
+    """Clear session."""
+    session.clear()
+    return jsonify({'success': True})
+
+
 # API routes
 @api.route('/status')
+@require_auth
 def api_status():
     """Get system status."""
     try:
@@ -57,6 +97,7 @@ def api_status():
 
 
 @api.route('/backups')
+@require_auth
 def api_backups():
     """Get list of backups."""
     try:
@@ -68,19 +109,10 @@ def api_backups():
 
 
 @api.route('/backups/create', methods=['POST'])
+@require_auth
 def api_create_backup():
     """Create a new backup."""
     try:
-        data = request.get_json()
-        password = data.get('password', '')
-
-        logger.info(f"Backup create attempt - received password length: {len(password)}")
-        logger.info(f"Expected hash: {Config.ADMIN_PASSWORD_HASH[:50]}...")
-
-        if not check_auth(password):
-            logger.warning(f"Authentication failed for backup creation")
-            return jsonify({'success': False, 'error': 'Invalid password'}), 401
-
         result = create_backup()
 
         if result['success']:
@@ -94,10 +126,14 @@ def api_create_backup():
 
 
 @api.route('/backups/verify', methods=['POST'])
+@require_auth
 def api_verify_backup():
     """Verify a backup file."""
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+
         backup_path = data.get('backup_path', '')
 
         if not backup_path:
@@ -122,17 +158,17 @@ def api_verify_backup():
 
 
 @api.route('/backups/restore', methods=['POST'])
+@require_auth
 def api_restore_backup():
     """Restore from a backup."""
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+
         backup_path = data.get('backup_path', '')
-        password = data.get('password', '')
         skip_backup = data.get('skip_backup', False)
         force = data.get('force', False)
-
-        if not check_auth(password):
-            return jsonify({'success': False, 'error': 'Invalid password'}), 401
 
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
@@ -158,6 +194,7 @@ def api_restore_backup():
 
 
 @api.route('/logs/restore')
+@require_auth
 def api_restore_logs():
     """Get restore logs."""
     try:
@@ -169,6 +206,7 @@ def api_restore_logs():
 
 
 @api.route('/logs/verification')
+@require_auth
 def api_verification_logs():
     """Get verification logs."""
     try:
@@ -180,6 +218,7 @@ def api_verification_logs():
 
 
 @api.route('/logs/download/<log_type>/<filename>')
+@require_auth
 def api_download_log(log_type, filename):
     """Download a log file."""
     try:

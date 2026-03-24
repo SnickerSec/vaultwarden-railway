@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Vaultwarden Backup Monitor</title>
-    <style>
+    <style nonce="{{ csp_nonce }}">
         :root {
             --primary-color: #175ddc;
             --success-color: #22c55e;
@@ -525,6 +526,26 @@
         </div>
     </div>
 
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Login Required</h3>
+                <p class="subtitle">Enter admin password to access the dashboard</p>
+            </div>
+            <form id="login-form" onsubmit="event.preventDefault(); doLogin();">
+                <div class="form-group">
+                    <label class="form-label" for="login-password">Admin Password</label>
+                    <input type="password" id="login-password" class="form-input" required placeholder="Enter admin password" autofocus>
+                </div>
+                <div id="login-error" style="color: var(--danger-color); font-size: 13px; margin-bottom: 10px;"></div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Create Backup Modal -->
     <div id="create-backup-modal" class="modal">
         <div class="modal-content">
@@ -533,10 +554,7 @@
                 <p class="subtitle">This will create a new database backup</p>
             </div>
             <form id="create-backup-form">
-                <div class="form-group">
-                    <label class="form-label" for="backup-password">Admin Password</label>
-                    <input type="password" id="backup-password" class="form-input" required placeholder="Enter admin password">
-                </div>
+                <p style="color: var(--text-muted); margin-bottom: 15px;">A new database backup will be created immediately.</p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('create-backup-modal')">Cancel</button>
                     <button type="submit" class="btn btn-success">
@@ -557,11 +575,7 @@
             </div>
             <form id="restore-backup-form">
                 <div class="alert alert-warning">
-                    <strong>⚠️ Warning:</strong> This will REPLACE all current data with the backup. A safety backup will be created first.
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="restore-password">Admin Password</label>
-                    <input type="password" id="restore-password" class="form-input" required placeholder="Enter admin password">
+                    <strong>Warning:</strong> This will REPLACE all current data with the backup. A safety backup will be created first.
                 </div>
                 <div class="form-group">
                     <label class="form-checkbox">
@@ -587,17 +601,74 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         let currentBackups = [];
+        let isAuthenticated = false;
+
+        // Get CSRF token from cookie
+        function getCsrfToken() {
+            const name = 'csrf_token=';
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) return meta.getAttribute('content');
+            return '';
+        }
+
+        // Authenticated fetch wrapper
+        async function authFetch(url, options = {}) {
+            const headers = options.headers || {};
+            if (options.method && options.method !== 'GET') {
+                headers['X-CSRFToken'] = getCsrfToken();
+            }
+            options.headers = headers;
+            const response = await fetch(url, options);
+            if (response.status === 401 && isAuthenticated) {
+                isAuthenticated = false;
+                showLoginScreen();
+            }
+            return response;
+        }
+
+        function showLoginScreen() {
+            document.getElementById('login-overlay').classList.add('active');
+        }
+
+        function hideLoginScreen() {
+            document.getElementById('login-overlay').classList.remove('active');
+        }
+
+        async function doLogin() {
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+            errorEl.textContent = '';
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ password })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    isAuthenticated = true;
+                    hideLoginScreen();
+                    document.getElementById('login-password').value = '';
+                    refreshStatus();
+                    refreshBackups();
+                    refreshLogs();
+                } else {
+                    errorEl.textContent = data.error || 'Invalid password';
+                }
+            } catch (error) {
+                errorEl.textContent = 'Connection error';
+            }
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            refreshStatus();
-            refreshBackups();
-            refreshLogs();
-
-            // Auto-refresh every 30 seconds
-            setInterval(refreshStatus, 30000);
+            showLoginScreen();
         });
 
         // Form submissions
@@ -613,7 +684,7 @@
 
         async function refreshStatus() {
             try {
-                const response = await fetch('/api/status');
+                const response = await authFetch('/api/status');
                 const data = await response.json();
 
                 if (data.success) {
@@ -630,7 +701,7 @@
             document.getElementById('backups-list').innerHTML = '<div class="loading"><div class="spinner"></div><span style="margin-left: 10px;">Loading backups...</span></div>';
 
             try {
-                const response = await fetch('/api/backups');
+                const response = await authFetch('/api/backups');
                 const data = await response.json();
 
                 if (data.success) {
@@ -647,7 +718,7 @@
         async function refreshLogs() {
             // Restore logs
             try {
-                const response = await fetch('/api/logs/restore');
+                const response = await authFetch('/api/logs/restore');
                 const data = await response.json();
 
                 if (data.success) {
@@ -659,7 +730,7 @@
 
             // Verification logs
             try {
-                const response = await fetch('/api/logs/verification');
+                const response = await authFetch('/api/logs/verification');
                 const data = await response.json();
 
                 if (data.success) {
@@ -751,30 +822,49 @@
                 return;
             }
 
-            container.innerHTML = `
-                <div class="backup-list">
-                    ${backups.map(backup => `
-                        <div class="backup-item">
-                            <div class="backup-header">
-                                <div class="backup-name">${backup.name}</div>
-                            </div>
-                            <div class="backup-info">
-                                <div>📅 ${backup.modified_ago}</div>
-                                <div>💾 ${backup.size_human}</div>
-                                <div>🔒 ${backup.permissions}</div>
-                            </div>
-                            <div class="backup-actions">
-                                <button class="btn btn-primary" onclick="verifyBackup('${backup.name}')">
-                                    ✓ Verify
-                                </button>
-                                <button class="btn btn-danger" onclick="showRestoreModal('${backup.name}', '${backup.name}')">
-                                    ↻ Restore
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            container.innerHTML = `<div class="backup-list"></div>`;
+            const list = container.querySelector('.backup-list');
+
+            backups.forEach(backup => {
+                const item = document.createElement('div');
+                item.className = 'backup-item';
+
+                const header = document.createElement('div');
+                header.className = 'backup-header';
+                const nameEl = document.createElement('div');
+                nameEl.className = 'backup-name';
+                nameEl.textContent = backup.name;
+                header.appendChild(nameEl);
+
+                const info = document.createElement('div');
+                info.className = 'backup-info';
+                info.innerHTML = `
+                    <div>${escapeHtml('📅 ' + backup.modified_ago)}</div>
+                    <div>${escapeHtml('💾 ' + backup.size_human)}</div>
+                    <div>${escapeHtml('🔒 ' + backup.permissions)}</div>
+                `;
+
+                const actions = document.createElement('div');
+                actions.className = 'backup-actions';
+
+                const verifyBtn = document.createElement('button');
+                verifyBtn.className = 'btn btn-primary';
+                verifyBtn.textContent = '✓ Verify';
+                verifyBtn.addEventListener('click', () => verifyBackup(backup.name));
+
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = 'btn btn-danger';
+                restoreBtn.textContent = '↻ Restore';
+                restoreBtn.addEventListener('click', () => showRestoreModal(backup.name, backup.name));
+
+                actions.appendChild(verifyBtn);
+                actions.appendChild(restoreBtn);
+
+                item.appendChild(header);
+                item.appendChild(info);
+                item.appendChild(actions);
+                list.appendChild(item);
+            });
         }
 
         function renderLogs(logs, containerId) {
@@ -790,11 +880,11 @@
                     ${logs.map(log => `
                         <div class="log-item">
                             <div class="log-header">
-                                <span>${log.name}</span>
-                                <span style="color: var(--text-muted);">${log.modified_ago}</span>
+                                <span>${escapeHtml(log.name)}</span>
+                                <span style="color: var(--text-muted);">${escapeHtml(log.modified_ago)}</span>
                             </div>
                             <div style="font-size: 11px; color: var(--text-muted);">
-                                ${log.size_human}
+                                ${escapeHtml(log.size_human)}
                             </div>
                             ${log.preview ? `<div class="log-preview">${escapeHtml(log.preview)}</div>` : ''}
                         </div>
@@ -804,7 +894,6 @@
         }
 
         async function createBackup() {
-            const password = document.getElementById('backup-password').value;
             const spinner = document.getElementById('create-backup-spinner');
             const submitBtn = document.querySelector('#create-backup-form button[type="submit"]');
 
@@ -812,10 +901,10 @@
             submitBtn.disabled = true;
 
             try {
-                const response = await fetch('/api/backups/create', {
+                const response = await authFetch('/api/backups/create', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({})
                 });
 
                 const data = await response.json();
@@ -825,7 +914,6 @@
                     closeModal('create-backup-modal');
                     refreshBackups();
                     refreshStatus();
-                    document.getElementById('backup-password').value = '';
                 } else {
                     showAlert('Error creating backup: ' + data.error, 'error');
                 }
@@ -841,7 +929,7 @@
             showAlert('Verifying backup...', 'warning');
 
             try {
-                const response = await fetch('/api/backups/verify', {
+                const response = await authFetch('/api/backups/verify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ backup_path: backupPath })
@@ -862,7 +950,6 @@
         }
 
         async function restoreBackup() {
-            const password = document.getElementById('restore-password').value;
             const backupPath = document.getElementById('restore-backup-path').value;
             const skipBackup = document.getElementById('restore-skip-backup').checked;
             const force = document.getElementById('restore-force').checked;
@@ -877,11 +964,10 @@
             submitBtn.disabled = true;
 
             try {
-                const response = await fetch('/api/backups/restore', {
+                const response = await authFetch('/api/backups/restore', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        password,
                         backup_path: backupPath,
                         skip_backup: skipBackup,
                         force: force
@@ -896,7 +982,6 @@
                     refreshBackups();
                     refreshStatus();
                     refreshLogs();
-                    document.getElementById('restore-password').value = '';
                 } else {
                     showAlert('Error restoring backup: ' + data.error, 'error');
                 }

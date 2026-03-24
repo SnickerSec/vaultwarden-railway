@@ -101,7 +101,7 @@ def check_vaultwarden_status():
                     version_info = version_data.get('version', version_data.get('server_version', 'Unknown'))
                 else:
                     version_info = str(version_data)
-        except:
+        except (requests.RequestException, ValueError, KeyError):
             # If version endpoint fails, fall back to checking headers
             try:
                 root_response = requests.get(
@@ -112,7 +112,7 @@ def check_vaultwarden_status():
                 server_header = root_response.headers.get('Server', '')
                 if 'Rocket' in server_header:
                     version_info = 'Rocket (Vaultwarden)'
-            except:
+            except requests.RequestException:
                 pass
 
         # Get latest version from GitHub and compare
@@ -149,7 +149,7 @@ def check_vaultwarden_status():
             'version': None,
             'latest_version': None,
             'version_status': 'unknown',
-            'error': str(e)
+            'error': 'Internal error checking Vaultwarden status'
         }
 
 
@@ -187,7 +187,7 @@ def get_logs(log_dir, limit=10):
                 with open(filepath, 'r') as f:
                     preview = ''.join(f.readlines()[:5])
                     info['preview'] = preview
-            except:
+            except (OSError, UnicodeDecodeError):
                 info['preview'] = 'Unable to read file'
             logs.append(info)
 
@@ -214,7 +214,7 @@ def get_system_status():
     for filepath in Config.BACKUP_DIR.glob('*.sql*'):
         try:
             status['total_backup_size'] += filepath.stat().st_size
-        except:
+        except OSError:
             pass
 
     status['total_backup_size_human'] = format_bytes(status['total_backup_size'])
