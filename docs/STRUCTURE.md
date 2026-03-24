@@ -6,10 +6,6 @@ This document describes the organization of the Vaultwarden Railway codebase.
 
 ```
 vaultwarden-railway/
-├── archive/                    # Archived/deprecated configuration files
-│   ├── README.md              # Archive documentation
-│   └── nixpacks.toml          # Old build configuration
-│
 ├── config/                     # Vaultwarden configuration templates
 │   ├── docker/                # Docker-specific configs
 │   ├── examples/              # Example configurations
