@@ -1,0 +1,23 @@
+# Gitleaks configuration for vaultwarden-railway
+# https://github.com/gitleaks/gitleaks
+
+title = "vaultwarden-railway gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+    '''\.gitleaks\.toml$''',
+    '''\.pre-commit-config\.yaml$''',
+]
+
+# Allow the password hash generation examples in docs/code (not actual secrets)
+regexTarget = "line"
+regexes = [
+    '''generate_password_hash\(''',
+    '''print\(generate_password_hash\(''',
+    '''ADMIN_TOKEN=<paste-generated-token>''',
+    '''openssl rand -base64''',
+]

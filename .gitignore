@@ -28,6 +28,8 @@ verification-logs/
 *secret*.txt
 *.key
 *.pem
+credentials.json
+service-account*.json
 
 # Railway
 .railway/
@@ -51,7 +53,7 @@ __pycache__/
 monitor/venv/
 monitor/*.egg-info/
 
-# Temporary/local scripts (http-cleanup utilities are tracked)
+# Temporary/local scripts
 scripts/maintenance/
 scripts/local/
 scripts/temp/
