@@ -147,10 +147,13 @@ print_section "Configuring Environment Variables"
 
 log "Setting monitoring dashboard variables..."
 
-railway variables set MONITOR_PASSWORD_HASH="$MONITOR_PASSWORD_HASH" || warning "Failed to set MONITOR_PASSWORD_HASH"
-railway variables set MONITOR_SECRET_KEY="$MONITOR_SECRET_KEY" || warning "Failed to set MONITOR_SECRET_KEY"
+printf '%s' "$MONITOR_PASSWORD_HASH" | railway variables set MONITOR_PASSWORD_HASH --stdin 2>/dev/null \
+    || railway variables set MONITOR_PASSWORD_HASH="$MONITOR_PASSWORD_HASH" \
+    || warning "Failed to set MONITOR_PASSWORD_HASH"
+printf '%s' "$MONITOR_SECRET_KEY" | railway variables set MONITOR_SECRET_KEY --stdin 2>/dev/null \
+    || railway variables set MONITOR_SECRET_KEY="$MONITOR_SECRET_KEY" \
+    || warning "Failed to set MONITOR_SECRET_KEY"
 railway variables set MONITOR_PORT="5000" || warning "Failed to set MONITOR_PORT"
-railway variables set MONITOR_DEBUG="false" || warning "Failed to set MONITOR_DEBUG"
 
 success "Environment variables configured"
 

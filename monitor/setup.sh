@@ -62,12 +62,17 @@ if [ ! -f ".env" ]; then
     echo ""
 
     if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
-        echo -e "${YELLOW}Passwords don't match. Using default password 'admin'${NC}"
-        ADMIN_PASSWORD="admin"
+        echo -e "${YELLOW}Passwords don't match. Please try again.${NC}"
+        exit 1
     fi
 
-    # Generate password hash
-    PASSWORD_HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$ADMIN_PASSWORD'))")
+    if [ ${#ADMIN_PASSWORD} -lt 8 ]; then
+        echo -e "${YELLOW}Password must be at least 8 characters.${NC}"
+        exit 1
+    fi
+
+    # Generate password hash (pass via stdin to avoid shell injection)
+    PASSWORD_HASH=$(printf '%s' "$ADMIN_PASSWORD" | python3 -c "import sys; from werkzeug.security import generate_password_hash; print(generate_password_hash(sys.stdin.read()))")
 
     # Update .env file
     sed -i "s|MONITOR_SECRET_KEY=.*|MONITOR_SECRET_KEY=$SECRET_KEY|g" .env

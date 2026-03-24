@@ -54,6 +54,8 @@ __pycache__/
 *.pyd
 .Python
 monitor/venv/
+monitor/.venv/
+.venv/
 monitor/*.egg-info/
 
 # Temporary/local scripts

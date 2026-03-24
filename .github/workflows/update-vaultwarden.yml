@@ -48,21 +48,27 @@ jobs:
             echo "update_available=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Trigger Railway deployment
+      - name: Create update PR
         if: steps.check.outputs.update_available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Triggering Railway deployment for Vaultwarden update"
-          # Create empty commit to trigger Railway deployment
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          BRANCH="auto-update/vaultwarden-${{ steps.check.outputs.latest_version }}"
+          git checkout -b "$BRANCH"
+
           if [ "${{ steps.check.outputs.update_type }}" = "rebuild" ]; then
             git commit --allow-empty -m "chore: rebuild for latest Vaultwarden version"
+            TITLE="chore: rebuild for latest Vaultwarden version"
           else
             git commit --allow-empty -m "chore: update to Vaultwarden ${{ steps.check.outputs.latest_version }}"
+            TITLE="chore: update to Vaultwarden ${{ steps.check.outputs.latest_version }}"
           fi
 
-          git push
+          git push -u origin "$BRANCH"
+          gh pr create --title "$TITLE" --body "Automated Vaultwarden update to ${{ steps.check.outputs.latest_version }}." --base main
 
       - name: Create update notification issue
         if: steps.check.outputs.update_available == 'true' && steps.check.outputs.update_type == 'version'
