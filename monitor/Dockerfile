@@ -1,33 +1,26 @@
-FROM python:3.11.12-slim
+FROM python:3.11-alpine
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     curl \
-    wget \
-    gnupg \
-    lsb-release \
     ca-certificates \
     gzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install PostgreSQL client tools
-RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
-    apt-get update && \
-    apt-get install -y postgresql-client-17 && \
-    rm -rf /var/lib/apt/lists/*
+    bash \
+    postgresql17-client
 
 # Install Railway CLI from pinned release
 ARG RAILWAY_CLI_VERSION=3.14.0
 RUN curl -fsSL -o /tmp/railway.tar.gz \
-        "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-linux-amd64.tar.gz" \
+        "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
     && tar -xzf /tmp/railway.tar.gz -C /usr/local/bin \
     && rm /tmp/railway.tar.gz \
-    && railway --version \
-    || echo "Railway CLI installation failed, continuing anyway..."
+    && railway --version
 
 # Set working directory
 WORKDIR /app
+
+# Upgrade pip, setuptools, and wheel to fix known CVEs
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -53,7 +46,7 @@ RUN chmod +x /scripts/*.sh /scripts/lib/*.sh
 RUN mkdir -p /backups /restore-logs /verification-logs
 
 # Create non-root user and set ownership
-RUN groupadd -r monitor && useradd -r -g monitor -d /app -s /sbin/nologin monitor \
+RUN addgroup -S monitor && adduser -S -G monitor -h /app -s /sbin/nologin monitor \
     && chown -R monitor:monitor /app /backups /restore-logs /verification-logs /scripts
 
 # Set environment variables
