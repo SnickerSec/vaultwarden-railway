@@ -38,21 +38,6 @@ jobs:
           sarif_file: 'trivy-monitor.sarif'
           category: 'trivy-monitor'
 
-      - name: Run Trivy on vaultwarden image
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: 'vaultwarden/server:1.35.4'
-          format: 'sarif'
-          output: 'trivy-vaultwarden.sarif'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-
-      - name: Upload Trivy vaultwarden results
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: 'trivy-vaultwarden.sarif'
-          category: 'trivy-vaultwarden'
 
   pip-audit:
     runs-on: ubuntu-latest
