@@ -4,7 +4,6 @@ Configuration management for the Vaultwarden Monitor Dashboard.
 
 import os
 from pathlib import Path
-from werkzeug.security import generate_password_hash
 
 
 class Config:
@@ -20,11 +19,8 @@ class Config:
     VERIFICATION_LOG_DIR = Path(os.environ.get('VERIFICATION_LOG_DIR', '../verification-logs'))
     SCRIPTS_DIR = Path(os.environ.get('SCRIPTS_DIR', '../scripts'))
 
-    # Authentication
-    ADMIN_PASSWORD_HASH = os.environ.get(
-        'MONITOR_PASSWORD_HASH',
-        generate_password_hash('admin')
-    )
+    # Authentication - MUST be set via environment variable
+    ADMIN_PASSWORD_HASH = os.environ.get('MONITOR_PASSWORD_HASH')
 
     # Server settings
     PORT = int(os.environ.get('MONITOR_PORT', 5000))

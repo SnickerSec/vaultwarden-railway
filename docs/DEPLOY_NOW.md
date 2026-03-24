@@ -69,16 +69,16 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 5. Add as variable
 6. Redeploy
 
-**Option C: Use default for now (change later)**
+**Option C: Generate a temporary password**
+```bash
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('your-temporary-password'))"
 ```
-REDACTED_PASSWORD_HASH
-```
-This is the hash for password: **admin**
-**IMPORTANT: Change this after first login!**
+**IMPORTANT: Use a strong password and change it regularly!**
 
 #### 2. MONITOR_SECRET_KEY
-```
-REDACTED_SECRET_KEY
+```bash
+# Generate a unique secret key:
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 #### 3. DATABASE_URL
@@ -126,7 +126,7 @@ false
 1. **Open the URL in your browser**
 2. You should see: **🛡️ Vaultwarden Backup Monitor**
 3. Click **"Create Backup"** to test
-4. Enter password: **admin** (or your custom password)
+4. Enter the password you configured
 5. Wait for backup to complete
 6. Verify it appears in the list!
 
@@ -168,8 +168,8 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `MONITOR_PASSWORD_HASH` | `scrypt:32768:8:1$...` | Generate or use default |
-| `MONITOR_SECRET_KEY` | `REDACTED_SECRET_KEY` | Provided above |
+| `MONITOR_PASSWORD_HASH` | *(generate with werkzeug)* | See Step 4 above |
+| `MONITOR_SECRET_KEY` | *(generate with secrets module)* | See Step 4 above |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` | References existing DB |
 | `MONITOR_PORT` | `5000` | Port for dashboard |
 | `MONITOR_DEBUG` | `false` | Production setting |

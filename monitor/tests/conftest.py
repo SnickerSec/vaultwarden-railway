@@ -34,5 +34,6 @@ def setup_test_env(tmp_path, monkeypatch):
     monkeypatch.setenv('RESTORE_LOG_DIR', str(restore_log_dir))
     monkeypatch.setenv('VERIFICATION_LOG_DIR', str(verification_log_dir))
     monkeypatch.setenv('SCRIPTS_DIR', str(scripts_dir))
+    from werkzeug.security import generate_password_hash
     monkeypatch.setenv('MONITOR_SECRET_KEY', 'test-secret-key')
-    monkeypatch.setenv('MONITOR_PASSWORD_HASH', 'pbkdf2:sha256:600000$test$test')
+    monkeypatch.setenv('MONITOR_PASSWORD_HASH', generate_password_hash('test-password-123'))

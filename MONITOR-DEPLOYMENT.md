@@ -36,10 +36,10 @@ The monitor dashboard provides a web interface to:
 3. **Set environment variables:**
    ```bash
    # Secret key for sessions
-   railway variables set MONITOR_SECRET_KEY=REDACTED_MONITOR_SECRET_KEY
+   railway variables set MONITOR_SECRET_KEY=<generate-with-python3-c-"import secrets; print(secrets.token_hex(32))">
 
    # Password hash for admin access
-   railway variables set MONITOR_PASSWORD_HASH='REDACTED_PASSWORD_HASH'
+   railway variables set MONITOR_PASSWORD_HASH='<generate-with-python3-c-"from werkzeug.security import generate_password_hash; print(generate_password_hash('YourPassword'))">'
 
    # Port configuration
    railway variables set MONITOR_PORT=5000
@@ -80,8 +80,8 @@ The monitor dashboard provides a web interface to:
 
    | Variable | Value |
    |----------|-------|
-   | `MONITOR_SECRET_KEY` | `REDACTED_MONITOR_SECRET_KEY` |
-   | `MONITOR_PASSWORD_HASH` | `REDACTED_PASSWORD_HASH` |
+   | `MONITOR_SECRET_KEY` | *(generate: `python3 -c "import secrets; print(secrets.token_hex(32))"`)* |
+   | `MONITOR_PASSWORD_HASH` | *(generate: `python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('YourPassword'))"`)* |
    | `MONITOR_PORT` | `5000` |
    | `MONITOR_DEBUG` | `false` |
    | `VAULTWARDEN_URL` | *(your Vaultwarden instance URL, e.g., https://vault.example.com)* |
@@ -117,9 +117,9 @@ Railway volumes provide persistent storage that survives container restarts and 
 ## Default Credentials
 
 - **Username:** `admin`
-- **Password:** `REDACTED_MONITOR_PASSWORD`
+- **Password:** *(set via MONITOR_PASSWORD_HASH environment variable)*
 
-⚠️ **IMPORTANT:** Change the password immediately after first login!
+⚠️ **IMPORTANT:** Generate a strong password and set the hash before deploying!
 
 ### How to Change Password
 

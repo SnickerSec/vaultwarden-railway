@@ -120,7 +120,7 @@ fi
 
 # Generate password hash using Python
 log "Generating secure password hash..."
-MONITOR_PASSWORD_HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$MONITOR_PASSWORD'))" 2>/dev/null || echo "")
+MONITOR_PASSWORD_HASH=$(printf '%s' "$MONITOR_PASSWORD" | python3 -c "import sys; from werkzeug.security import generate_password_hash; print(generate_password_hash(sys.stdin.read()))" 2>/dev/null || echo "")
 
 if [[ -z "$MONITOR_PASSWORD_HASH" ]]; then
     error "Failed to generate password hash. Install werkzeug: pip install werkzeug"
