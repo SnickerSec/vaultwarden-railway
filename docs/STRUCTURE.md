@@ -19,20 +19,17 @@ vaultwarden-railway/
 ├── docs/                       # Project documentation
 │   ├── BACKUP.md              # Backup procedures
 │   ├── CLOUDFLARE_SETUP.md    # Cloudflare configuration
-│   ├── DEPLOY.md              # Deployment instructions
-│   ├── DEPLOYMENT_GUIDE.md    # Comprehensive deployment guide
-│   ├── DEPLOYMENT_NOTES.md    # Deployment notes and tips
-│   ├── DEPLOY_NOW.md          # Quick deployment guide
+│   ├── DEPLOY.md              # Vaultwarden deployment guide
 │   ├── EMAIL_SETUP.md         # Email service configuration
 │   ├── GOOGLE_AUTH_SETUP.md   # Google OAuth setup
-│   ├── MONITORING.md          # Monitoring and dashboard setup
-│   ├── PROJECT_SUMMARY.md     # Project overview
+│   ├── MONITOR-DEPLOYMENT.md  # Monitor dashboard deployment
+│   ├── MONITORING.md          # Monitoring and dashboard usage
 │   ├── QUICK_START.md         # Quick start guide
 │   ├── RATE_LIMITING.md       # Rate limiting configuration
 │   ├── README.md              # Documentation index
 │   ├── RESTORE.md             # Restore procedures
 │   ├── SECURITY.md            # Security considerations
-│   ├── SETUP_COMPLETE.md      # Post-setup checklist
+│   ├── STRUCTURE.md           # This file
 │   └── UPDATES.md             # Update procedures
 │
 ├── monitor/                    # Backup Monitor Dashboard (Python/Flask)
@@ -45,8 +42,13 @@ vaultwarden-railway/
 │   │   └── verify-backup.sh  # Backup verification script
 │   ├── templates/             # HTML templates
 │   │   └── index.html        # Main dashboard template
+│   ├── tests/                 # Test suite
+│   │   ├── conftest.py       # Pytest configuration
+│   │   ├── test_routes.py    # Route tests
+│   │   └── test_utils.py     # Utility function tests
 │   ├── app.py                 # Flask application entry point
 │   ├── config.py              # Application configuration
+│   ├── extensions.py          # Flask extensions (CSRF, rate limiter)
 │   ├── Dockerfile             # Container build definition
 │   ├── README.md              # Monitor documentation
 │   ├── requirements.txt       # Python dependencies
@@ -56,27 +58,9 @@ vaultwarden-railway/
 │   └── utils.py               # Utility functions
 │
 ├── scripts/                    # Operational scripts
-│   ├── http-cleanup/          # HTTP URI cleanup utilities (one-time migration)
-│   │   ├── cleanup-all.sh              # Clean all items
-│   │   ├── cleanup-http-uris-apikey.sh # API key-based cleanup
-│   │   ├── cleanup-http-uris-interactive.sh # Interactive cleanup
-│   │   ├── cleanup-http-uris-v2.py     # Python v2 cleanup
-│   │   ├── cleanup-http-uris.py        # Original Python cleanup
-│   │   ├── cleanup-loop.sh             # Loop-based cleanup
-│   │   ├── cleanup-simple.sh           # Simple cleanup
-│   │   ├── count-http.sh               # Count HTTP URIs
-│   │   ├── debug-item.sh               # Debug specific items
-│   │   ├── fix-http-working.sh         # Working fix script
-│   │   ├── fix-http.sh                 # Fix HTTP URIs
-│   │   ├── run-until-done.sh           # Run until complete
-│   │   ├── test-single.sh              # Test single item
-│   │   ├── README-cleanup.md           # Cleanup documentation
-│   │   └── USAGE.md                    # Usage instructions
-│   │
 │   ├── lib/                   # Shared script libraries
 │   │   ├── backup.sh         # Backup functions
 │   │   └── common.sh         # Common utilities
-│   │
 │   ├── backup-vault.sh        # Create database backup
 │   ├── check-version.sh       # Check Vaultwarden version
 │   ├── deploy-to-railway.sh   # Deploy to Railway
@@ -86,11 +70,17 @@ vaultwarden-railway/
 │   ├── setup-rate-limiting.sh # Setup rate limiting
 │   └── verify-backup.sh       # Verify backup integrity
 │
+├── .github/workflows/          # GitHub Actions
+│   ├── backup-database.yml    # Daily database backup (3 AM UTC)
+│   ├── check-version.yml      # Weekly version report
+│   ├── restore-database.yml   # Manual database restore
+│   └── update-vaultwarden.yml # Daily update checker (2 AM UTC)
+│
 ├── .gitignore                 # Git ignore patterns
-├── MONITOR-DEPLOYMENT.md      # Monitor service deployment guide
+├── Dockerfile                 # Main Vaultwarden container
 ├── README.md                  # Project README
-├── railway.monitor.toml       # Railway config for monitor service
-└── STRUCTURE.md              # This file
+└── railway.monitor.toml       # Railway config for monitor service
+```
 
 ## Key Components
 
@@ -110,14 +100,10 @@ Operational scripts for:
 - Admin token generation
 - Rate limiting setup
 
-### HTTP Cleanup Utilities (`/scripts/http-cleanup`)
-**Note:** These are one-time migration scripts used to convert HTTP URIs to HTTPS
-in the Vaultwarden database. They are retained for reference but are not part
-of normal operations.
-
 ### Documentation (`/docs`)
 Comprehensive guides covering:
 - Setup and deployment
+- Monitor dashboard deployment
 - Configuration options
 - Security best practices
 - Backup and restore procedures
@@ -132,7 +118,7 @@ Comprehensive guides covering:
 - Document all scripts with usage comments
 
 ### Monitor Development
-- Python code follows Flask best practices
+- Flask extensions initialized in `extensions.py` to avoid circular imports
 - Security validations in `utils.py`
 - Business logic in `services.py`
 - HTTP handling in `routes.py`
@@ -155,10 +141,12 @@ Comprehensive guides covering:
 
 ### Security Validations
 The monitor dashboard implements:
-- Path traversal prevention (`is_safe_path()`)
+- Path traversal prevention (`get_safe_path()`)
 - Filename sanitization
 - Command injection prevention
-- Password authentication
+- Password authentication with rate limiting
+- CSP nonces (no unsafe-inline)
+- Session cookie security (Secure, HttpOnly, SameSite)
 - Input validation
 
 ## Railway Deployment
@@ -166,7 +154,7 @@ The monitor dashboard implements:
 The project is configured for Railway deployment with two services:
 
 1. **Main Vaultwarden Service**
-   - Runs official Vaultwarden container
+   - Runs official Vaultwarden container (pinned version)
    - PostgreSQL database
    - Persistent volume for data
 
@@ -176,7 +164,7 @@ The project is configured for Railway deployment with two services:
    - Persistent volume for backups
    - Configuration via `railway.monitor.toml`
 
-See `MONITOR-DEPLOYMENT.md` and `docs/DEPLOYMENT_GUIDE.md` for details.
+See [MONITOR-DEPLOYMENT.md](MONITOR-DEPLOYMENT.md) and [DEPLOY.md](DEPLOY.md) for details.
 
 ## Version Control
 

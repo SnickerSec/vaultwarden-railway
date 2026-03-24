@@ -50,13 +50,14 @@ In Railway dashboard: New → Database → Add PostgreSQL
 
 | Guide | Description |
 |-------|-------------|
-| [STRUCTURE.md](STRUCTURE.md) | **Codebase organization and structure** |
 | [docs/QUICK_START.md](docs/QUICK_START.md) | 10-minute setup guide |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Detailed deployment |
+| [docs/MONITOR-DEPLOYMENT.md](docs/MONITOR-DEPLOYMENT.md) | Monitor dashboard deployment |
 | [docs/BACKUP.md](docs/BACKUP.md) | Backup configuration |
 | [docs/RESTORE.md](docs/RESTORE.md) | Restore procedures |
 | [docs/MONITORING.md](docs/MONITORING.md) | Web dashboard |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security best practices |
+| [docs/STRUCTURE.md](docs/STRUCTURE.md) | Codebase organization |
 | [docs/README.md](docs/README.md) | Full documentation index |
 
 ## Scripts

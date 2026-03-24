@@ -7,14 +7,14 @@ This directory contains all documentation for the Vaultwarden Railway deployment
 | Document | Description |
 |----------|-------------|
 | [QUICK_START.md](QUICK_START.md) | Get started in under 10 minutes |
-| [DEPLOY.md](DEPLOY.md) | Detailed deployment guide |
-| [SETUP_COMPLETE.md](SETUP_COMPLETE.md) | Post-deployment checklist |
+| [DEPLOY.md](DEPLOY.md) | Detailed Vaultwarden deployment guide |
+| [MONITOR-DEPLOYMENT.md](MONITOR-DEPLOYMENT.md) | Deploy the backup monitoring dashboard |
 
 ## Operations
 
 | Document | Description |
 |----------|-------------|
-| [BACKUP.md](BACKUP.md) | Backup configuration and manual procedures |
+| [BACKUP.md](BACKUP.md) | Backup configuration and procedures |
 | [RESTORE.md](RESTORE.md) | Database restore procedures |
 | [MONITORING.md](MONITORING.md) | Web-based monitoring dashboard |
 | [UPDATES.md](UPDATES.md) | Version management and auto-updates |
@@ -33,8 +33,7 @@ This directory contains all documentation for the Vaultwarden Railway deployment
 | Document | Description |
 |----------|-------------|
 | [EMAIL_SETUP.md](EMAIL_SETUP.md) | SMTP email notifications |
-| [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md) | Technical deployment details |
-| [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) | Project overview and structure |
+| [STRUCTURE.md](STRUCTURE.md) | Codebase organization and architecture |
 
 ## Quick Reference
 
@@ -47,8 +46,9 @@ Start with [QUICK_START.md](QUICK_START.md) for a streamlined 10-minute setup.
 - See [RESTORE.md](RESTORE.md) for restore procedures
 
 ### Monitoring Dashboard
+- Deploy with [MONITOR-DEPLOYMENT.md](MONITOR-DEPLOYMENT.md)
 - Access via `https://your-monitor-url.railway.app`
-- See [MONITORING.md](MONITORING.md) for setup
+- See [MONITORING.md](MONITORING.md) for usage
 
 ### Security Hardening
 1. Configure rate limiting: [RATE_LIMITING.md](RATE_LIMITING.md)
