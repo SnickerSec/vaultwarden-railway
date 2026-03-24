@@ -44,6 +44,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Claude Code
+CLAUDE.md
+
 # Python
 __pycache__/
 *.pyc
