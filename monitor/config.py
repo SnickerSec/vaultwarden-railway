@@ -24,7 +24,7 @@ class Config:
 
     # Server settings
     PORT = int(os.environ.get('MONITOR_PORT', 5000))
-    DEBUG = os.environ.get('MONITOR_DEBUG', 'false').lower() == 'true'
+    DEBUG = False  # Never enable debug mode — Werkzeug debugger allows RCE
     HOST = '0.0.0.0'
 
     # Vaultwarden settings

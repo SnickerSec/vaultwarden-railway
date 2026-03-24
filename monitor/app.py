@@ -90,4 +90,4 @@ if __name__ == '__main__':
     logger.info(f"Backup directory: {Config.BACKUP_DIR.resolve()}")
     logger.info(f"Scripts directory: {Config.SCRIPTS_DIR.resolve()}")
 
-    app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
+    app.run(host=Config.HOST, port=Config.PORT, debug=False)
