@@ -425,6 +425,52 @@
             background: #475569;
         }
 
+        .loading-text {
+            margin-left: 10px;
+        }
+
+        .note-box {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .grid-mt {
+            margin-top: 30px;
+        }
+
+        .login-error {
+            color: var(--danger-color);
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .modal-desc {
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+
+        .stat-value-sm {
+            font-size: 16px;
+        }
+
+        .empty-state-sub {
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .log-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .text-muted {
+            color: var(--text-muted);
+        }
+
         @media (max-width: 768px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -468,7 +514,7 @@
                 </div>
                 <div id="system-status" class="loading">
                     <div class="spinner"></div>
-                    <span style="margin-left: 10px;">Loading...</span>
+                    <span class="loading-text">Loading...</span>
                 </div>
             </div>
 
@@ -484,7 +530,7 @@
                         📋 Refresh List
                     </button>
                 </div>
-                <div style="margin-top: 15px; padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; font-size: 13px; color: var(--text-muted);">
+                <div class="note-box">
                     <strong>Note:</strong> Backup and restore operations require admin authentication.
                 </div>
             </div>
@@ -498,19 +544,19 @@
             </div>
             <div id="backups-list" class="loading">
                 <div class="spinner"></div>
-                <span style="margin-left: 10px;">Loading backups...</span>
+                <span class="loading-text">Loading backups...</span>
             </div>
         </div>
 
         <!-- Logs -->
-        <div class="grid" style="margin-top: 30px;">
+        <div class="grid grid-mt">
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">Recent Restore Logs</h2>
                 </div>
                 <div id="restore-logs" class="loading">
                     <div class="spinner"></div>
-                    <span style="margin-left: 10px;">Loading logs...</span>
+                    <span class="loading-text">Loading logs...</span>
                 </div>
             </div>
 
@@ -520,7 +566,7 @@
                 </div>
                 <div id="verification-logs" class="loading">
                     <div class="spinner"></div>
-                    <span style="margin-left: 10px;">Loading logs...</span>
+                    <span class="loading-text">Loading logs...</span>
                 </div>
             </div>
         </div>
@@ -538,7 +584,7 @@
                     <label class="form-label" for="login-password">Admin Password</label>
                     <input type="password" id="login-password" class="form-input" required placeholder="Enter admin password" autocomplete="off" autofocus>
                 </div>
-                <div id="login-error" style="color: var(--danger-color); font-size: 13px; margin-bottom: 10px;"></div>
+                <div id="login-error" class="login-error"></div>
                 <div class="modal-actions">
                     <button type="submit" class="btn btn-primary">Login</button>
                 </div>
@@ -554,7 +600,7 @@
                 <p class="subtitle">This will create a new database backup</p>
             </div>
             <form id="create-backup-form">
-                <p style="color: var(--text-muted); margin-bottom: 15px;">A new database backup will be created immediately.</p>
+                <p class="modal-desc">A new database backup will be created immediately.</p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="btn-cancel-create-backup">Cancel</button>
                     <button type="submit" class="btn btn-success">
@@ -710,7 +756,7 @@
         }
 
         async function refreshBackups() {
-            document.getElementById('backups-list').innerHTML = '<div class="loading"><div class="spinner"></div><span style="margin-left: 10px;">Loading backups...</span></div>';
+            document.getElementById('backups-list').innerHTML = '<div class="loading"><div class="spinner"></div><span class="loading-text">Loading backups...</span></div>';
 
             try {
                 const response = await authFetch('/api/backups');
@@ -786,7 +832,7 @@
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Version</div>
-                        <div class="stat-value" style="font-size: 16px;">
+                        <div class="stat-value stat-value-sm">
                             <span class="status-indicator status-${versionStatus}"></span>
                             ${versionDisplay}
                         </div>
@@ -828,7 +874,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">📦</div>
                         <p>No backups found</p>
-                        <p style="font-size: 14px; margin-top: 10px;">Create your first backup using the button above</p>
+                        <p class="empty-state-sub">Create your first backup using the button above</p>
                     </div>
                 `;
                 return;
@@ -899,9 +945,9 @@
                         <div class="log-item">
                             <div class="log-header">
                                 <span>${escapeHtml(log.name)}</span>
-                                <span style="color: var(--text-muted);">${escapeHtml(log.modified_ago)}</span>
+                                <span class="text-muted">${escapeHtml(log.modified_ago)}</span>
                             </div>
-                            <div style="font-size: 11px; color: var(--text-muted);">
+                            <div class="log-meta">
                                 ${escapeHtml(log.size_human)}
                             </div>
                             ${log.preview ? `<div class="log-preview">${escapeHtml(log.preview)}</div>` : ''}
