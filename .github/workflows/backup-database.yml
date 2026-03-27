@@ -56,23 +56,26 @@ jobs:
           # Create backup using pg_dump 17 with retry for transient failures
           MAX_RETRIES=3
           RETRY_DELAY=10
+          PG_ERR_FILE=$(mktemp)
+          chmod 600 "$PG_ERR_FILE"
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "Backup attempt $attempt of $MAX_RETRIES..."
-            if /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl > "$BACKUP_FILE" 2>/tmp/pg_dump_err; then
+            if /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl > "$BACKUP_FILE" 2>"$PG_ERR_FILE"; then
               echo "pg_dump succeeded on attempt $attempt"
               break
             fi
-            echo "pg_dump failed on attempt $attempt:"
-            cat /tmp/pg_dump_err
+            echo "pg_dump failed on attempt $attempt"
             if [ "$attempt" -eq "$MAX_RETRIES" ]; then
               echo "All $MAX_RETRIES attempts failed"
-              cat /tmp/pg_dump_err >&2
+              echo "::error::pg_dump failed after $MAX_RETRIES attempts"
+              rm -f "$PG_ERR_FILE"
               exit 1
             fi
             echo "Retrying in ${RETRY_DELAY}s..."
             sleep $RETRY_DELAY
             RETRY_DELAY=$((RETRY_DELAY * 2))
           done
+          rm -f "$PG_ERR_FILE"
 
           # Compress backup
           gzip "$BACKUP_FILE"

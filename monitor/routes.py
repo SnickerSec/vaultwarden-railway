@@ -65,10 +65,14 @@ def api_login():
         password = data.get('password', '')
 
         if not check_auth(password):
-            logger.warning("Authentication failed")
+            logger.warning("Authentication failed from %s", request.remote_addr)
             return jsonify({'success': False, 'error': 'Invalid password'}), 401
 
+        # Regenerate session to prevent session fixation
+        session.clear()
         session['authenticated'] = True
+        session.permanent = True
+        logger.info("Successful login from %s", request.remote_addr)
         return jsonify({'success': True})
 
     except Exception as e:
@@ -147,7 +151,7 @@ def api_verify_backup():
         if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
-        logger.info(f"Verifying backup: {safe_path.name}")
+        logger.info("Verifying backup: %s (from %s)", safe_path.name, request.remote_addr)
         result = verify_backup(str(safe_path))
 
         return jsonify(result)
@@ -167,8 +171,8 @@ def api_restore_backup():
             return jsonify({'success': False, 'error': 'Invalid request'}), 400
 
         backup_path = data.get('backup_path', '')
-        skip_backup = data.get('skip_backup', False)
-        force = data.get('force', False)
+        skip_backup = data.get('skip_backup', False) is True
+        force = data.get('force', False) is True
 
         if not backup_path:
             return jsonify({'success': False, 'error': 'Backup path required'}), 400
@@ -181,6 +185,7 @@ def api_restore_backup():
         if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
+        logger.info("Restoring backup: %s (from %s)", safe_path.name, request.remote_addr)
         result = restore_backup(safe_path, skip_backup=skip_backup, force=force)
 
         if result['success']:
@@ -214,7 +219,7 @@ def api_delete_backup():
         if not safe_path.exists():
             return jsonify({'success': False, 'error': 'Backup file not found'}), 404
 
-        logger.info(f"Deleting backup: {safe_path.name}")
+        logger.info("Deleting backup: %s (from %s)", safe_path.name, request.remote_addr)
         safe_path.unlink()
         return jsonify({'success': True, 'message': f'Deleted {safe_path.name}'})
 

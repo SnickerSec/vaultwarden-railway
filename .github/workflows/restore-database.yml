@@ -153,10 +153,7 @@ jobs:
           echo ""
           echo "This will PERMANENTLY DELETE all existing data!"
           echo ""
-          echo "Current database stats:"
-          echo "  - Size: ${{ env.DB_SIZE }}"
-          echo "  - Tables: ${{ env.TABLE_COUNT }}"
-          echo "  - Users: ${{ env.USER_COUNT }}"
+          echo "Current database has data. Restore will replace it."
           echo ""
           echo "Backup to restore: ${{ env.BACKUP_FILE }}"
           echo ""
@@ -294,7 +291,7 @@ jobs:
         with:
           name: restore-log-${{ github.run_number }}
           path: ./restore-logs/*.txt
-          retention-days: 90
+          retention-days: 30
 
       - name: Create Issue on Failure
         if: failure()

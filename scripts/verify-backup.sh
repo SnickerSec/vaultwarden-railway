@@ -173,7 +173,8 @@ verify_file_integrity() {
     if [[ "$DEEP_VERIFY" == true ]]; then
         log_verify "Performing deep verification (SQL syntax check)..."
 
-        local temp_file=$(mktemp)
+        local temp_file=$(mktemp -t vw-verify-XXXXXX)
+        chmod 600 "$temp_file"
 
         # Extract to temp file if compressed
         if [[ "$file" == *.gz ]]; then

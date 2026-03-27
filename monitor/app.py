@@ -34,6 +34,11 @@ def create_app():
             "MONITOR_PASSWORD_HASH environment variable is required. "
             "Generate one with: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('yourpassword'))\""
         )
+    if not Config.SECRET_KEY:
+        raise RuntimeError(
+            "MONITOR_SECRET_KEY environment variable is required. "
+            "Generate one with: python -c \"import os; print(os.urandom(32).hex())\""
+        )
 
     # Load configuration
     app.config['SECRET_KEY'] = Config.SECRET_KEY
@@ -69,6 +74,7 @@ def create_app():
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}'; "

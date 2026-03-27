@@ -10,8 +10,25 @@ from pathlib import Path
 
 from werkzeug.utils import secure_filename
 
+import re
+
 from config import Config
 from utils import get_file_info, format_bytes, run_command
+
+
+def _redact_sensitive(text):
+    """Redact potential secrets from log output."""
+    if not text:
+        return text
+    # Redact connection strings, tokens, passwords, keys
+    patterns = [
+        (r'postgres(ql)?://[^\s"\']+', 'postgres://***REDACTED***'),
+        (r'(password|token|secret|key|auth)\s*[=:]\s*\S+', r'\1=***REDACTED***'),
+        (r'(DATABASE_URL|SECRET_KEY|PASSWORD_HASH)\s*=\s*\S+', r'\1=***REDACTED***'),
+    ]
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +219,7 @@ def get_logs(log_dir, limit=10):
             try:
                 with open(filepath, 'r') as f:
                     preview = ''.join(f.readlines()[:5])
-                    info['preview'] = preview
+                    info['preview'] = _redact_sensitive(preview)
             except (OSError, UnicodeDecodeError):
                 info['preview'] = 'Unable to read file'
             logs.append(info)
@@ -309,8 +326,8 @@ def create_backup():
     result = run_command(['./backup-vault.sh'], timeout=Config.DEFAULT_COMMAND_TIMEOUT)
 
     logger.info(f"Backup command completed - success: {result['success']}")
-    logger.info(f"Backup stdout: {result.get('stdout', 'N/A')}")
-    logger.info(f"Backup stderr: {result.get('stderr', 'N/A')}")
+    logger.info(f"Backup stdout: {_redact_sensitive(result.get('stdout', 'N/A'))}")
+    logger.info(f"Backup stderr: {_redact_sensitive(result.get('stderr', 'N/A'))}")
     logger.info(f"Backup return code: {result.get('returncode', 'N/A')}")
 
     if result['success']:
@@ -384,7 +401,7 @@ def restore_backup(backup_file, skip_backup=False, force=False):
             'output': result['stdout']
         }
     else:
-        logger.error(f"Restore failed: {result['stderr']}")
+        logger.error(f"Restore failed: {_redact_sensitive(result['stderr'])}")
         send_notification('Restore Failed', f'Restore from {safe_name} failed')
         return {
             'success': False,

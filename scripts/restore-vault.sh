@@ -21,6 +21,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/backup.sh"
 
+# Trap signals for graceful cleanup
+cleanup_on_interrupt() {
+    echo ""
+    echo -e "${RED}✗ ERROR:${NC} Restore interrupted by signal" | tee -a "$RESTORE_LOG" 2>/dev/null || true
+    echo "WARNING: Database may be in an inconsistent state." | tee -a "$RESTORE_LOG" 2>/dev/null || true
+    echo "Check the safety backup to restore to the pre-restore state." | tee -a "$RESTORE_LOG" 2>/dev/null || true
+    exit 130
+}
+trap cleanup_on_interrupt SIGINT SIGTERM
+
 ###############################################################################
 # Configuration
 ###############################################################################
@@ -169,7 +179,9 @@ perform_restore() {
 
     # Drop existing schema and recreate
     log_restore "Dropping existing schema..."
-    railway run psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" &> /dev/null || error_restore "Failed to drop schema"
+    local schema_output
+    schema_output=$(railway run psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" 2>&1) || error_restore "Failed to drop schema"
+    log_restore "Schema drop/recreate output: $schema_output"
     success_restore "Schema recreated"
 
     # Perform the restore

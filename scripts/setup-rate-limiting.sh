@@ -62,10 +62,22 @@ case $CHOICE in
         ;;
     4)
         print_info "Custom configuration..."
+
+        validate_positive_int() {
+            if ! [[ "$1" =~ ^[0-9]+$ ]] || [[ "$1" -eq 0 ]]; then
+                print_error "Invalid input: must be a positive integer"
+                exit 1
+            fi
+        }
+
         read -p "Login attempts per burst: " LOGIN_BURST
+        validate_positive_int "$LOGIN_BURST"
         read -p "Login time window (seconds): " LOGIN_SECONDS
+        validate_positive_int "$LOGIN_SECONDS"
         read -p "Admin attempts per burst: " ADMIN_BURST
+        validate_positive_int "$ADMIN_BURST"
         read -p "Admin time window (seconds): " ADMIN_SECONDS
+        validate_positive_int "$ADMIN_SECONDS"
         ;;
     *)
         print_error "Invalid choice"

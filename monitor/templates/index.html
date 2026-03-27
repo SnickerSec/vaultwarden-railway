@@ -462,7 +462,7 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">System Status</h2>
-                    <button class="btn btn-secondary btn-sm" onclick="refreshStatus()">
+                    <button class="btn btn-secondary btn-sm" id="btn-refresh-status">
                         <span id="refresh-icon">🔄</span> Refresh
                     </button>
                 </div>
@@ -477,10 +477,10 @@
                     <h2 class="card-title">Quick Actions</h2>
                 </div>
                 <div class="action-buttons">
-                    <button class="btn btn-success" onclick="showCreateBackupModal()">
+                    <button class="btn btn-success" id="btn-create-backup">
                         ➕ Create Backup
                     </button>
-                    <button class="btn btn-primary" onclick="refreshBackups()">
+                    <button class="btn btn-primary" id="btn-refresh-backups">
                         📋 Refresh List
                     </button>
                 </div>
@@ -533,10 +533,10 @@
                 <h3 class="modal-title">Login Required</h3>
                 <p class="subtitle">Enter admin password to access the dashboard</p>
             </div>
-            <form id="login-form" onsubmit="event.preventDefault(); doLogin();">
+            <form id="login-form">
                 <div class="form-group">
                     <label class="form-label" for="login-password">Admin Password</label>
-                    <input type="password" id="login-password" class="form-input" required placeholder="Enter admin password" autofocus>
+                    <input type="password" id="login-password" class="form-input" required placeholder="Enter admin password" autocomplete="off" autofocus>
                 </div>
                 <div id="login-error" style="color: var(--danger-color); font-size: 13px; margin-bottom: 10px;"></div>
                 <div class="modal-actions">
@@ -556,7 +556,7 @@
             <form id="create-backup-form">
                 <p style="color: var(--text-muted); margin-bottom: 15px;">A new database backup will be created immediately.</p>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('create-backup-modal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-create-backup">Cancel</button>
                     <button type="submit" class="btn btn-success">
                         <span id="create-backup-spinner"></span>
                         Create Backup
@@ -591,7 +591,7 @@
                 </div>
                 <input type="hidden" id="restore-backup-path">
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('restore-backup-modal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-restore-backup">Cancel</button>
                     <button type="submit" class="btn btn-danger">
                         <span id="restore-backup-spinner"></span>
                         Restore Backup
@@ -669,9 +669,21 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             showLoginScreen();
+
+            // Button event listeners (no inline onclick handlers for CSP compliance)
+            document.getElementById('btn-refresh-status').addEventListener('click', refreshStatus);
+            document.getElementById('btn-create-backup').addEventListener('click', showCreateBackupModal);
+            document.getElementById('btn-refresh-backups').addEventListener('click', refreshBackups);
+            document.getElementById('btn-cancel-create-backup').addEventListener('click', function() { closeModal('create-backup-modal'); });
+            document.getElementById('btn-cancel-restore-backup').addEventListener('click', function() { closeModal('restore-backup-modal'); });
         });
 
         // Form submissions
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            doLogin();
+        });
+
         document.getElementById('create-backup-form').addEventListener('submit', function(e) {
             e.preventDefault();
             createBackup();

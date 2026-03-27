@@ -32,10 +32,17 @@ if [[ "$OPTION" == "2" ]]; then
     # Generate random password
     ADMIN_PASSWORD=$(openssl rand -base64 32)
     echo ""
-    print_warning "Generated random password: $ADMIN_PASSWORD"
+    print_warning "A random password has been generated."
+    print_warning "It will be displayed ONCE below. Copy it now to a secure location."
+    echo ""
+    echo "========================================="
+    printf '%s' "$ADMIN_PASSWORD"
+    echo ""
+    echo "========================================="
+    echo ""
     print_warning "SAVE THIS PASSWORD - You'll need it to access the admin panel!"
     echo ""
-    echo "Press Enter to continue..."
+    echo "Press Enter AFTER you have saved the password..."
     read
 fi
 
@@ -43,7 +50,7 @@ print_section "Running Vaultwarden hash command"
 
 if [[ "$OPTION" == "2" ]]; then
     echo "The Docker container will now prompt you to enter a password."
-    echo "Enter this password: $ADMIN_PASSWORD"
+    echo "Paste the password you saved above."
     echo ""
     echo "Press Enter to continue..."
     read
@@ -63,9 +70,9 @@ echo ""
 echo "6. Access admin panel at: https://your-domain.railway.app/admin"
 
 if [[ "$OPTION" == "2" ]]; then
-    echo "   Use password: $ADMIN_PASSWORD"
+    echo "   Use the password you saved earlier"
     echo ""
-    print_warning "IMPORTANT: Save this password somewhere secure!"
+    print_warning "IMPORTANT: Ensure the password is stored somewhere secure!"
 else
     echo "   Use the password you just entered"
 fi

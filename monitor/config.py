@@ -10,7 +10,7 @@ class Config:
     """Application configuration."""
 
     # Flask settings
-    SECRET_KEY = os.environ.get('MONITOR_SECRET_KEY', os.urandom(32).hex())
+    SECRET_KEY = os.environ.get('MONITOR_SECRET_KEY', '')
     JSON_SORT_KEYS = False
 
     # Directory paths

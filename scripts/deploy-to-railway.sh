@@ -60,14 +60,19 @@ if has_uncommitted_changes; then
             COMMIT_MSG="Deploy: Add monitoring dashboard and restore system"
         fi
 
-        log "Committing changes..."
-        git commit -m "$COMMIT_MSG
+        # Sanitize commit message: reject shell metacharacters
+        if [[ "$COMMIT_MSG" =~ [\$\`\!] ]]; then
+            error "Commit message contains invalid characters"
+        fi
 
-- Added automated restore system with safety checks
+        log "Committing changes..."
+        COMMIT_BODY="- Added automated restore system with safety checks
 - Created web-based monitoring dashboard
 - Added backup verification tools
 - Implemented monthly restore testing
 - Updated documentation"
+
+        git commit -m "$COMMIT_MSG" -m "$COMMIT_BODY"
 
         success "Changes committed"
     else
