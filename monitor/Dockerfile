@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 
 # Upgrade base packages to pick up security fixes, then install dependencies
 RUN apk upgrade --no-cache && apk add --no-cache \
