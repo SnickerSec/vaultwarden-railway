@@ -3,4 +3,4 @@ Flask-Limiter==4.1.1
 Flask-WTF==1.2.2
 Werkzeug==3.1.7
 requests==2.33.1
-gunicorn==25.1.0
+gunicorn==25.3.0
