@@ -57,12 +57,15 @@ jobs:
           path: ./restore-artifacts
 
       - name: List Downloaded Artifacts
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           echo "Downloaded backup artifacts:"
           ls -lh ./restore-artifacts/
 
-          # Find the backup file
-          BACKUP_FILE=$(find ./restore-artifacts -name "*.sql.gz" -o -name "*.sql" | head -n 1)
+          # Find the backup file (encrypted, gzipped, or plain)
+          BACKUP_FILE=$(find ./restore-artifacts \
+            \( -name "*.sql.gz.gpg" -o -name "*.sql.gz" -o -name "*.sql" \) | head -n 1)
 
           if [ -z "$BACKUP_FILE" ]; then
             echo "ERROR: No backup file found in artifact"
@@ -70,6 +73,27 @@ jobs:
           fi
 
           echo "Found backup file: $BACKUP_FILE"
+
+          # Decrypt if GPG-encrypted
+          if [[ "$BACKUP_FILE" == *.gpg ]]; then
+            if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+              echo "ERROR: BACKUP_ENCRYPTION_PASSPHRASE secret is required to decrypt this artifact"
+              exit 1
+            fi
+            echo "Decrypting backup..."
+            PASSPHRASE_FILE=$(mktemp)
+            chmod 600 "$PASSPHRASE_FILE"
+            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSPHRASE_FILE"
+            DECRYPTED="${BACKUP_FILE%.gpg}"
+            gpg --batch --yes --decrypt --pinentry-mode loopback \
+              --passphrase-file "$PASSPHRASE_FILE" \
+              -o "$DECRYPTED" "$BACKUP_FILE"
+            shred -u "$PASSPHRASE_FILE" 2>/dev/null || rm -f "$PASSPHRASE_FILE"
+            rm -f "$BACKUP_FILE"
+            BACKUP_FILE="$DECRYPTED"
+            echo "Decrypted to: $BACKUP_FILE"
+          fi
+
           echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
 
           # Verify gzip integrity if compressed
@@ -121,28 +145,44 @@ jobs:
         if: ${{ github.event.inputs.skip_safety_backup != 'true' }}
         env:
           DATABASE_URL: ${{ secrets.PUBLIC_DATABASE_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           echo "Creating pre-restore safety backup..."
           mkdir -p ./safety-backups
 
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          SAFETY_BACKUP="./safety-backups/pre_restore_backup_${TIMESTAMP}.sql.gz"
+          SAFETY_BACKUP_GZ="./safety-backups/pre_restore_backup_${TIMESTAMP}.sql.gz"
 
-          if pg_dump "$DATABASE_URL" --no-owner --no-acl | gzip > "$SAFETY_BACKUP"; then
-            BACKUP_SIZE=$(du -h "$SAFETY_BACKUP" | cut -f1)
-            echo "Safety backup created: $SAFETY_BACKUP ($BACKUP_SIZE)"
-            echo "SAFETY_BACKUP=$SAFETY_BACKUP" >> $GITHUB_ENV
-          else
+          if ! pg_dump "$DATABASE_URL" --no-owner --no-acl | gzip > "$SAFETY_BACKUP_GZ"; then
             echo "ERROR: Failed to create safety backup"
             exit 1
           fi
+
+          if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+            echo "::error::BACKUP_ENCRYPTION_PASSPHRASE secret is not set — refusing to upload unencrypted safety backup"
+            exit 1
+          fi
+
+          SAFETY_BACKUP="${SAFETY_BACKUP_GZ}.gpg"
+          PASSPHRASE_FILE=$(mktemp)
+          chmod 600 "$PASSPHRASE_FILE"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$PASSPHRASE_FILE"
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase-file "$PASSPHRASE_FILE" --pinentry-mode loopback \
+            -o "$SAFETY_BACKUP" "$SAFETY_BACKUP_GZ"
+          shred -u "$PASSPHRASE_FILE" 2>/dev/null || rm -f "$PASSPHRASE_FILE"
+          rm -f "$SAFETY_BACKUP_GZ"
+
+          BACKUP_SIZE=$(du -h "$SAFETY_BACKUP" | cut -f1)
+          echo "Safety backup created: $SAFETY_BACKUP ($BACKUP_SIZE)"
+          echo "SAFETY_BACKUP=$SAFETY_BACKUP" >> $GITHUB_ENV
 
       - name: Upload Safety Backup
         if: ${{ github.event.inputs.skip_safety_backup != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: pre-restore-safety-backup-${{ github.run_number }}
-          path: ./safety-backups/*.sql.gz
+          path: ./safety-backups/*.sql.gz.gpg
           retention-days: 30
 
       - name: Restore Database Warning
