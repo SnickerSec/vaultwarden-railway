@@ -28,8 +28,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
     reviewers:
       - "SnickerSec"
     labels:
@@ -41,8 +40,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/monitor"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
     reviewers:
       - "SnickerSec"
     labels:
