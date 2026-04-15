@@ -698,12 +698,10 @@
                 });
                 const data = await response.json();
                 if (data.success) {
-                    isAuthenticated = true;
-                    hideLoginScreen();
-                    document.getElementById('login-password').value = '';
-                    refreshStatus();
-                    refreshBackups();
-                    refreshLogs();
+                    // Reload so the new session's CSRF token is embedded in the meta tag.
+                    // session.clear() on login regenerates the session, invalidating the old token.
+                    window.location.reload();
+                    return;
                 } else {
                     errorEl.textContent = data.error || 'Invalid password';
                 }
