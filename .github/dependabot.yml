@@ -1,17 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/monitor"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    reviewers:
-      - "SnickerSec"
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore(deps):"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -27,18 +15,6 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/"
-    schedule:
-      interval: "daily"
-    reviewers:
-      - "SnickerSec"
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "chore(deps):"
-
-  - package-ecosystem: "docker"
-    directory: "/monitor"
     schedule:
       interval: "daily"
     reviewers:

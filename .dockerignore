@@ -5,13 +5,9 @@
 *.md
 docker-compose.yml
 railway.toml
-railway.monitor.toml
 docs/
 config/
 scripts/http-cleanup/
-monitor/.venv/
-monitor/venv/
-monitor/tests/
 backups/
 restore-logs/
 verification-logs/

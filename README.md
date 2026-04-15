@@ -8,8 +8,8 @@ A lightweight, self-hosted password manager with built-in 2FA/OTP support, ready
 - Built-in TOTP/2FA authenticator
 - End-to-end encryption
 - Bitwarden-compatible (use official Bitwarden apps)
-- Automatic daily backups with web-based monitoring dashboard
-- Automatic updates via GitHub Actions
+- Automatic daily encrypted backups via GitHub Actions
+- Automatic dependency updates via Dependabot
 
 ## Quick Start
 
@@ -52,10 +52,8 @@ In Railway dashboard: New → Database → Add PostgreSQL
 |-------|-------------|
 | [docs/QUICK_START.md](docs/QUICK_START.md) | 10-minute setup guide |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Detailed deployment |
-| [docs/MONITOR-DEPLOYMENT.md](docs/MONITOR-DEPLOYMENT.md) | Monitor dashboard deployment |
 | [docs/BACKUP.md](docs/BACKUP.md) | Backup configuration |
 | [docs/RESTORE.md](docs/RESTORE.md) | Restore procedures |
-| [docs/MONITORING.md](docs/MONITORING.md) | Web dashboard |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security best practices |
 | [docs/STRUCTURE.md](docs/STRUCTURE.md) | Codebase organization |
 | [docs/README.md](docs/README.md) | Full documentation index |
@@ -89,12 +87,6 @@ vaultwarden-railway/
 │   ├── docker/          # Docker Compose for local dev
 │   └── variants/        # OAuth2 and other variants
 ├── docs/                # Documentation
-├── monitor/             # Web monitoring dashboard
-│   ├── app.py           # Flask application
-│   ├── config.py        # Configuration
-│   ├── routes.py        # API routes
-│   ├── services.py      # Business logic
-│   └── utils.py         # Utilities
 ├── scripts/             # Utility scripts
 │   ├── lib/             # Shared shell libraries
 │   ├── backup-vault.sh

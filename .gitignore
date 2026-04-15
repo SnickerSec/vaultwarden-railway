@@ -1,7 +1,6 @@
 # Environment files
 .env
 .env.local
-monitor/.env
 
 # Data directory
 data/
@@ -53,10 +52,7 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-monitor/venv/
-monitor/.venv/
 .venv/
-monitor/*.egg-info/
 
 # Temporary/local scripts
 scripts/maintenance/
