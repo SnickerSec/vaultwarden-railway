@@ -698,10 +698,18 @@
                 });
                 const data = await response.json();
                 if (data.success) {
-                    // Reload so the new session's CSRF token is embedded in the meta tag.
-                    // session.clear() on login regenerates the session, invalidating the old token.
-                    window.location.reload();
-                    return;
+                    // Update the CSRF meta tag with the fresh token bound to the
+                    // new post-login session (session.clear() invalidated the old one).
+                    if (data.csrf_token) {
+                        const meta = document.querySelector('meta[name="csrf-token"]');
+                        if (meta) meta.setAttribute('content', data.csrf_token);
+                    }
+                    isAuthenticated = true;
+                    hideLoginScreen();
+                    document.getElementById('login-password').value = '';
+                    refreshStatus();
+                    refreshBackups();
+                    refreshLogs();
                 } else {
                     errorEl.textContent = data.error || 'Invalid password';
                 }

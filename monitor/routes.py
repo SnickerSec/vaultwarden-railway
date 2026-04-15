@@ -7,6 +7,7 @@ from datetime import datetime
 from functools import wraps
 
 from flask import Blueprint, render_template, jsonify, request, send_file, session, g
+from flask_wtf.csrf import generate_csrf
 from werkzeug.security import check_password_hash
 
 from extensions import limiter
@@ -73,7 +74,9 @@ def api_login():
         session['authenticated'] = True
         session.permanent = True
         logger.info("Successful login from %s", request.remote_addr)
-        return jsonify({'success': True})
+        # Return a fresh CSRF token bound to the new session so subsequent
+        # POSTs from the still-loaded page validate correctly.
+        return jsonify({'success': True, 'csrf_token': generate_csrf()})
 
     except Exception as e:
         logger.error(f"Login error: {e}")
