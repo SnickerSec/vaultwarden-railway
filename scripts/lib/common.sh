@@ -127,9 +127,38 @@ check_pg_dump() {
     return 0
 }
 
+# Shell prefix that connects psql/pg_dump over the Postgres container's local
+# socket. The database is only reachable on Railway's private network, and
+# the container's PGHOST/PGPASSWORD go stale after a password rotation.
+export RAILWAY_PG_ENV='unset PGHOST PGPASSWORD; export PGHOST=/var/run/postgresql PGUSER="${POSTGRES_USER:-postgres}"'
+
+# Database name for remote commands: RAILWAY_DB_NAME, or the service's
+# PGDATABASE (expanded inside the container)
+railway_db_name() {
+    if [[ -n "${RAILWAY_DB_NAME:-}" ]]; then
+        echo "$RAILWAY_DB_NAME"
+    else
+        echo '${PGDATABASE:-railway}'
+    fi
+}
+
+# Run psql inside the Railway Postgres container, reading SQL from stdin
+# Usage: railway_psql [psql args...] < input
+# Set RAILWAY_DB_NAME to target a database other than the service's default.
+railway_psql() {
+    railway ssh --service "${RAILWAY_DB_SERVICE:-Postgres}" -- bash -c \
+        "$RAILWAY_PG_ENV; psql -d \"$(railway_db_name)\" -v ON_ERROR_STOP=1 $*" 2>/dev/null
+}
+
+# Run a single query and print unaligned, tuples-only output
+# Usage: railway_query "SQL"
+railway_query() {
+    printf '%s\n' "$1" | railway_psql -At
+}
+
 # Check database connection via Railway
 check_database_connection() {
-    if ! railway run psql "$DATABASE_URL" -c "SELECT 1;" &> /dev/null; then
+    if ! railway_query "SELECT 1;" &> /dev/null; then
         print_error "Cannot connect to database"
         return 1
     fi

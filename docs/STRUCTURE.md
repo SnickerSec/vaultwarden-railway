@@ -9,6 +9,7 @@ vaultwarden-railway/
 ├── config/                     # Vaultwarden configuration templates
 │   ├── docker/                # Docker-specific configs
 │   ├── examples/              # Example configurations
+│   ├── systemd/               # Backup timer units (see docs/BACKUP.md)
 │   ├── variants/              # Configuration variants (OAuth2, etc.)
 │   └── README.md              # Configuration documentation
 │
@@ -62,14 +63,13 @@ vaultwarden-railway/
 │   ├── deploy-to-railway.sh   # Deploy to Railway
 │   ├── generate-admin-token.sh # Generate admin token
 │   ├── get-railway-ids.sh     # Get Railway service IDs
+│   ├── pull-backup.sh         # Automated encrypted backup (systemd timer)
 │   ├── restore-vault.sh       # Restore from backup
 │   ├── setup-rate-limiting.sh # Setup rate limiting
 │   └── verify-backup.sh       # Verify backup integrity
 │
 ├── .github/workflows/          # GitHub Actions
-│   ├── backup-database.yml    # Daily database backup (3 AM UTC)
 │   ├── check-version.yml      # Weekly version report
-│   ├── restore-database.yml   # Manual database restore
 │   └── update-vaultwarden.yml # Daily update checker (2 AM UTC)
 │
 ├── .gitignore                 # Git ignore patterns

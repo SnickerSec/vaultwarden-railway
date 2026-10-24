@@ -5,6 +5,7 @@
 #
 
 set -e
+umask 077
 
 # Source shared libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,11 +72,11 @@ Database Backup:
 
 Backup Retention:
 - Local: $BACKUP_RETENTION_DAYS days
-- GitHub Actions artifacts: 90 days (automated backups)
+- Automated pull backups: ~/vaultwarden-backups (see docs/BACKUP.md)
 
 Restore Instructions:
 1. Uncompress: gunzip $compressed_file
-2. Restore: railway run psql "\$DATABASE_URL" < ${compressed_file%.gz}
+2. Restore: see "Restoring from Database Backup" in docs/BACKUP.md
 
 For more info, see docs/BACKUP.md
 EOF

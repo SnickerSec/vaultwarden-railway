@@ -24,6 +24,31 @@ export BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 # Backup Functions
 ###############################################################################
 
+# Dump the database inside the Railway Postgres container to stdout (plain SQL)
+# Usage: railway_pg_dump > file.sql
+railway_pg_dump() {
+    # base64 keeps the stream intact over the SSH session
+    railway ssh --service "${RAILWAY_DB_SERVICE:-Postgres}" -- bash -c \
+        "set -o pipefail; $RAILWAY_PG_ENV; pg_dump -d \"$(railway_db_name)\" --no-owner --no-acl | base64 -w0" \
+        2>/dev/null | base64 -d
+}
+
+# Write a backup's plain SQL to stdout, decrypting/decompressing as needed
+# Usage: read_backup <file.sql|file.sql.gz|file.sql.gz.gpg>
+read_backup() {
+    local file="$1"
+    local passphrase_file="${BACKUP_PASSPHRASE_FILE:-$HOME/.config/vaultwarden-backup/passphrase}"
+
+    case "$file" in
+        *.gpg)
+            gpg --batch --quiet --decrypt --pinentry-mode loopback \
+                --passphrase-file "$passphrase_file" "$file" | gunzip -c
+            ;;
+        *.gz) gunzip -c "$file" ;;
+        *) cat "$file" ;;
+    esac
+}
+
 # Create a database backup
 # Usage: create_database_backup [output_file]
 create_database_backup() {
@@ -36,14 +61,15 @@ create_database_backup() {
 
     ensure_dir "$BACKUP_DIR"
 
-    print_info "Creating PostgreSQL database backup..."
+    print_info "Creating PostgreSQL database backup..." >&2
 
-    if railway run pg_dump "\$DATABASE_URL" > "$output_file"; then
-        print_success "Database backup created: $output_file"
+    if railway_pg_dump > "$output_file" \
+        && grep -q '^-- PostgreSQL database dump complete' "$output_file"; then
+        print_success "Database backup created: $output_file" >&2
         echo "$output_file"
         return 0
     else
-        print_error "Database backup failed"
+        print_error "Database backup failed" >&2
         return 1
     fi
 }
@@ -54,18 +80,18 @@ compress_backup() {
     local backup_file="$1"
 
     if [[ ! -f "$backup_file" ]]; then
-        print_error "Backup file not found: $backup_file"
+        print_error "Backup file not found: $backup_file" >&2
         return 1
     fi
 
-    print_info "Compressing backup..."
+    print_info "Compressing backup..." >&2
 
     if gzip "$backup_file"; then
-        print_success "Backup compressed: ${backup_file}.gz"
+        print_success "Backup compressed: ${backup_file}.gz" >&2
         echo "${backup_file}.gz"
         return 0
     else
-        print_error "Compression failed"
+        print_error "Compression failed" >&2
         return 1
     fi
 }
@@ -105,7 +131,7 @@ list_backups() {
         echo "[$count] $filename"
         echo "    Size: $size | Date: $date"
         echo ""
-    done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
+    done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz.gpg" -o -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
 
     if [[ $count -eq 0 ]]; then
         print_warning "No backups found"
@@ -148,15 +174,19 @@ create_safety_backup() {
 
     ensure_dir "$BACKUP_DIR"
 
-    print_info "Creating safety backup..."
+    print_info "Creating safety backup..." >&2
 
-    if railway run pg_dump "\$DATABASE_URL" | gzip > "$safety_backup"; then
+    local tmp="${safety_backup%.gz}"
+    if railway_pg_dump > "$tmp" \
+        && grep -q '^-- PostgreSQL database dump complete' "$tmp" \
+        && gzip "$tmp"; then
         local size=$(get_file_size "$safety_backup")
-        print_success "Safety backup created: $safety_backup ($size)"
+        print_success "Safety backup created: $safety_backup ($size)" >&2
         echo "$safety_backup"
         return 0
     else
-        print_error "Failed to create safety backup"
+        rm -f "$tmp"
+        print_error "Failed to create safety backup" >&2
         return 1
     fi
 }
