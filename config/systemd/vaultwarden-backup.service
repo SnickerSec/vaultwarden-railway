@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull encrypted Vaultwarden database backup from Railway
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Set RAILWAY_PROJECT_ID and RAILWAY_ENVIRONMENT_ID (and optional overrides) here
+EnvironmentFile=%h/.config/vaultwarden-backup/env
+ExecStart=%h/.local/bin/vaultwarden-pull-backup

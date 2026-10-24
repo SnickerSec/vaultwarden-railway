@@ -4,60 +4,77 @@ This guide covers automated and manual backup strategies for your Vaultwarden in
 
 ## Automated Daily Backups
 
-Your deployment includes **automated daily database backups** via GitHub Actions.
+Automated backups are **pulled** to a machine you control by a systemd timer running `scripts/pull-backup.sh`.
 
 ### How Automated Backups Work
 
-**Schedule:** Daily at 3 AM UTC (1 hour after update checks)
+The script runs `pg_dump` *inside* the Railway Postgres container over `railway ssh`, streams the result back, verifies it, and encrypts it locally with GPG.
+
+- The database never needs a public TCP proxy. Keep public networking **disabled** on the Postgres service.
+- No database credentials are stored outside Railway, and no backup credentials are stored on Railway.
+- The dump connects over the container's local socket, so it keeps working after a Postgres password rotation.
+
+> **Why not GitHub Actions?** The previous workflow connected over Railway's public TCP proxy using a database URL stored in GitHub secrets. Following Railway's October 2026 security incident, public database access has been removed, and that workflow has been retired.
+
+**Schedule:** Daily at 3 AM (local time, ±15 min). Runs at next boot if the machine was off.
 
 **What gets backed up:**
-- Complete PostgreSQL database dump
-- All vault data, users, and settings
-- Compressed with gzip for efficiency
+- Complete PostgreSQL database dump (all vault data, users, and settings)
+- Verified (valid gzip + pg_dump completion marker) before it is kept
+- Encrypted with GPG (AES256): `vaultwarden_db_backup_YYYYMMDD_HHMMSS.sql.gz.gpg`
 
-**Retention:**
-- GitHub Actions artifacts: 90 days
-- Local cleanup: 30 days (if using manual script)
+**Retention:** 30 days (`BACKUP_RETENTION_DAYS`)
 
-**Workflow file:** `.github/workflows/backup-database.yml`
+**On failure:** the script opens a GitHub issue in `BACKUP_ISSUE_REPO` (if set) and exits non-zero.
 
 ### Setup Requirements
 
-To enable automated backups, you need to configure a Railway token:
+On the machine that will hold the backups:
 
-1. **Generate Railway Token:**
+1. **Install and log in to the Railway CLI** (`railway login`). Add your SSH key if prompted; `railway ssh` must work.
+
+2. **Create the config** (`~/.config/vaultwarden-backup/`):
    ```bash
-   railway login
-   railway token
+   umask 077
+   mkdir -p ~/.config/vaultwarden-backup
+   openssl rand -base64 48 | tr -d '\n' > ~/.config/vaultwarden-backup/passphrase
+   cat > ~/.config/vaultwarden-backup/env <<'EOF'
+   RAILWAY_PROJECT_ID=<project id>
+   RAILWAY_ENVIRONMENT_ID=<environment id>
+   BACKUP_ISSUE_REPO=<owner>/<repo>
+   EOF
+   ```
+   Get the IDs with `./scripts/get-railway-ids.sh` or `railway status --json`.
+
+   **Store a copy of the passphrase somewhere other than this machine and other than this vault**: without it, backups can't be decrypted.
+
+3. **Install the script and timer:**
+   ```bash
+   install -m 755 scripts/pull-backup.sh ~/.local/bin/vaultwarden-pull-backup
+   install -m 644 config/systemd/vaultwarden-backup.{service,timer} ~/.config/systemd/user/
+   systemctl --user daemon-reload
+   systemctl --user enable --now vaultwarden-backup.timer
+   loginctl enable-linger "$USER"   # run even when you're not logged in
    ```
 
-2. **Add to GitHub Secrets:**
-   - Go to your GitHub repository
-   - Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Name: `RAILWAY_TOKEN`
-   - Value: (paste your Railway token)
-   - Click "Add secret"
-
-3. **Verify Setup:**
-   - Go to Actions tab in GitHub
-   - Select "Daily Database Backup"
-   - Click "Run workflow" to test
-   - Check that backup completes successfully
+4. **Verify Setup:**
+   ```bash
+   systemctl --user start vaultwarden-backup.service
+   journalctl --user -u vaultwarden-backup.service -n 20
+   ls -l ~/vaultwarden-backups
+   ```
 
 ### Accessing Automated Backups
 
-**Via GitHub Actions:**
-1. Go to your repository on GitHub
-2. Click "Actions" tab
-3. Select "Daily Database Backup" workflow
-4. Click on a completed run
-5. Download backup artifact at bottom of page
+Backups are in `~/vaultwarden-backups` (`BACKUP_DIR`). Decrypt one with:
 
-**Backup files contain:**
-- Compressed SQL dump (`.sql.gz`)
-- All database tables and data
-- Ready for restore
+```bash
+gpg --decrypt --pinentry-mode loopback \
+  --passphrase-file ~/.config/vaultwarden-backup/passphrase \
+  vaultwarden_db_backup_TIMESTAMP.sql.gz.gpg | gunzip > backup.sql
+```
+
+Backups live on a single machine, so copy them offsite too (see [Recommended Offsite](#recommended-offsite)). They're already encrypted, so they're safe to sync to cloud storage.
 
 ## Manual Backup Methods
 
@@ -87,14 +104,16 @@ BACKUP_DIR=/path/to/backups ./scripts/backup-vault.sh
 
 ### Method 2: Railway CLI Direct Backup
 
+`railway run` executes locally, where the private `postgres.railway.internal` host isn't reachable, so run `pg_dump` inside the Postgres container instead:
+
 ```bash
-# Backup database
-railway run pg_dump "$DATABASE_URL" > backup.sql
+# Backup database (run from a directory linked with `railway link`)
+railway ssh --service Postgres -- bash -c \
+  'unset PGHOST PGPASSWORD; pg_dump -h /var/run/postgresql -U postgres -d railway --no-owner --no-acl | gzip -c | base64 -w0' \
+  | base64 -d > backup.sql.gz
 
-# Compress backup
-gzip backup.sql
-
-# Result: backup.sql.gz
+# Check it's complete
+zcat backup.sql.gz | grep -q '^-- PostgreSQL database dump complete' && echo OK
 ```
 
 ### Method 3: Web Vault Export
@@ -127,7 +146,7 @@ Railway provides built-in PostgreSQL backup features:
 
 | Backup Type | Frequency | Retention | Purpose |
 |-------------|-----------|-----------|---------|
-| Automated DB | Daily | 90 days | Primary backup |
+| Automated DB | Daily | 30 days | Primary backup |
 | Manual Script | Weekly | 30 days | Local safety net |
 | Web Export | Monthly | Permanent | Disaster recovery |
 | Pre-update | Before updates | Until verified | Rollback capability |
@@ -138,13 +157,24 @@ Railway provides built-in PostgreSQL backup features:
 
 **From automated/manual backup file:**
 
-```bash
-# Uncompress backup
-gunzip vaultwarden_db_backup_TIMESTAMP.sql.gz
+Pipe the backup into `psql` inside the Postgres container:
 
-# Restore to Railway PostgreSQL
-railway run psql "$DATABASE_URL" < vaultwarden_db_backup_TIMESTAMP.sql
+```bash
+# Optional: restore into a scratch database first to check the backup
+PSQL='unset PGHOST PGPASSWORD; psql -h /var/run/postgresql -U postgres'
+railway ssh --service Postgres -- bash -c "$PSQL -c 'CREATE DATABASE vw_restore_test'"
+
+# Restore (use -d railway for production; clear the schema first, see "Restore Fails")
+gpg --decrypt --pinentry-mode loopback \
+  --passphrase-file ~/.config/vaultwarden-backup/passphrase \
+  vaultwarden_db_backup_TIMESTAMP.sql.gz.gpg | gunzip -c \
+  | railway ssh --service Postgres -- bash -c "$PSQL -d vw_restore_test -v ON_ERROR_STOP=1 -q"
+
+# Clean up the scratch database
+railway ssh --service Postgres -- bash -c "$PSQL -c 'DROP DATABASE vw_restore_test'"
 ```
+
+For plain `.sql.gz` files from the manual script, replace the `gpg ... |` step with `gunzip -c file.sql.gz |`.
 
 **Important:**
 - Service will be temporarily unavailable during restore
@@ -177,9 +207,14 @@ Regularly test your backups to ensure they work:
 
 ### Test Database Backup
 
+Restore into a scratch `vw_restore_test` database on the same server, as shown in [Restoring from Database Backup](#restoring-from-database-backup), then compare row counts with production:
+
 ```bash
-# Create test restore (don't affect production)
-railway run --service test-instance psql "$DATABASE_URL" < backup.sql
+PSQL='unset PGHOST PGPASSWORD; psql -h /var/run/postgresql -U postgres'
+Q="select (select count(*) from users), (select count(*) from ciphers), (select count(*) from devices);"
+for db in vw_restore_test railway; do
+  echo "$Q" | railway ssh --service Postgres -- bash -c "$PSQL -d $db -At"
+done
 ```
 
 ### Test Web Export
@@ -198,7 +233,7 @@ railway run --service test-instance psql "$DATABASE_URL" < backup.sql
    - 1 offsite backup
 
 2. **Multiple Backup Types:**
-   - Automated daily database backups (GitHub)
+   - Automated daily database backups (pull timer)
    - Weekly manual script backups (local)
    - Monthly web exports (encrypted, offsite)
 
@@ -221,11 +256,11 @@ railway run --service test-instance psql "$DATABASE_URL" < backup.sql
 
 ## Backup Storage Locations
 
-### GitHub Actions Artifacts
-- **Location:** GitHub repository Actions tab
-- **Retention:** 90 days
-- **Access:** Download from workflow runs
-- **Security:** Private repository access required
+### Automated Pull Backups
+- **Location:** `~/vaultwarden-backups` on the backup machine
+- **Retention:** 30 days (auto-cleanup)
+- **Access:** Decrypt with the passphrase in `~/.config/vaultwarden-backup/passphrase`
+- **Security:** GPG-encrypted, files and directory are owner-only (`umask 077`)
 
 ### Local Backups
 - **Location:** `./backups` directory
@@ -243,15 +278,12 @@ railway run --service test-instance psql "$DATABASE_URL" < backup.sql
 
 ### Check Automated Backup Status
 
-**Via GitHub:**
-1. Go to Actions tab
-2. Check "Daily Database Backup" workflow
-3. Review recent runs
-4. Failed runs create GitHub issues
+```bash
+systemctl --user list-timers vaultwarden-backup.timer
+journalctl --user -u vaultwarden-backup.service -n 50
+```
 
-**Via Email:**
-- Configure GitHub notifications
-- Get alerts on workflow failures
+Failed runs open a "Database Backup Failed" GitHub issue when `BACKUP_ISSUE_REPO` is set; enable GitHub notifications to get alerted.
 
 ### Backup Size Monitoring
 
@@ -279,25 +311,17 @@ Large unexpected increases may indicate:
 
 ### Automated Backup Fails
 
-**Check GitHub Actions logs:**
-1. Go to Actions tab
-2. Click failed workflow run
-3. Review error messages
+**Check the logs:**
+```bash
+journalctl --user -u vaultwarden-backup.service -n 100
+```
 
 **Common issues:**
-- `RAILWAY_TOKEN` not configured
-- Railway token expired
-- Database connection failed
-- Insufficient permissions
-
-**Fix:**
-```bash
-# Generate new token
-railway token
-
-# Update GitHub secret with new token
-# Settings → Secrets → RAILWAY_TOKEN → Update
-```
+- Railway CLI logged out: run `railway login`, then `systemctl --user start vaultwarden-backup.service`
+- `railway ssh` key not registered: run any `railway ssh` command interactively once
+- `passphrase file not found`: recreate `~/.config/vaultwarden-backup/passphrase` (new backups only; old ones need the old passphrase)
+- `dump is incomplete or invalid`: the log shows `pg_dump`'s error; check the Postgres service is running
+- Timer not firing while logged out: `loginctl enable-linger "$USER"`
 
 ### Manual Script Fails
 
@@ -312,11 +336,7 @@ railway login
 ```
 
 **Error: "pg_dump: command not found"**
-```bash
-# Railway should provide pg_dump
-# Try running via railway CLI context
-railway run which pg_dump
-```
+`pg_dump` runs inside the Postgres container, not locally. Make sure `--service` points at the Postgres service, not Vaultwarden.
 
 ### Backup File Corrupted
 
@@ -343,11 +363,13 @@ gunzip -t backup.sql.gz
 
 **Solution:**
 ```bash
+PSQL='unset PGHOST PGPASSWORD; psql -h /var/run/postgresql -U postgres -d railway'
+
 # Clear target database first (DANGER: destroys data)
-railway run psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+railway ssh --service Postgres -- bash -c "$PSQL -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
 
 # Then restore
-railway run psql "$DATABASE_URL" < backup.sql
+gunzip -c backup.sql.gz | railway ssh --service Postgres -- bash -c "$PSQL -v ON_ERROR_STOP=1 -q"
 ```
 
 ## Security Considerations
@@ -400,8 +422,9 @@ chmod 700 backups/
 ## Backup Checklist
 
 **Initial Setup:**
-- [ ] Configure `RAILWAY_TOKEN` in GitHub secrets
-- [ ] Test automated backup workflow
+- [ ] Keep public networking disabled on the Postgres service
+- [ ] Install the pull backup timer and run it once
+- [ ] Store the backup passphrase offsite
 - [ ] Install Railway CLI locally
 - [ ] Test manual backup script
 - [ ] Create first web vault export
@@ -412,7 +435,7 @@ chmod 700 backups/
 - [ ] Monthly: Create manual web export
 - [ ] Quarterly: Test restore procedure
 - [ ] Quarterly: Review backup sizes
-- [ ] Annually: Rotate Railway token
+- [ ] Monthly: Copy backups offsite
 - [ ] Before updates: Create backup
 
 **Emergency Preparedness:**
@@ -446,18 +469,16 @@ See [RESTORE.md](RESTORE.md) for complete restore documentation.
 - [Vaultwarden Backup Wiki](https://github.com/dani-garcia/vaultwarden/wiki/Backing-up-your-vault)
 - [PostgreSQL Backup Guide](https://www.postgresql.org/docs/current/backup.html)
 - [Railway Backup Documentation](https://docs.railway.app/databases/postgresql#backups)
-- [GitHub Actions Artifacts](https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts)
 
 ## Support
 
 Having issues with backups?
 
 1. Check this guide first
-2. Review GitHub Actions logs
-3. Test Railway CLI connection
+2. Review `journalctl --user -u vaultwarden-backup.service`
+3. Test `railway ssh --service Postgres -- echo ok`
 4. Check disk space
-5. Verify Railway token
-6. Open issue in repository
+5. Open issue in repository
 
 ---
 

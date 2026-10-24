@@ -146,6 +146,23 @@ verify_file_integrity() {
         success_verify "Permissions are secure"
     fi
 
+    # Decrypt GPG-encrypted backups to a temporary .gz for the checks below
+    if [[ "$file" == *.gpg ]]; then
+        log_verify "Decrypting..."
+        local decrypted
+        decrypted=$(mktemp -t vw-verify-XXXXXX.sql.gz)
+        chmod 600 "$decrypted"
+        trap "rm -f '$decrypted'; trap - RETURN" RETURN
+        if ! gpg --batch --quiet --decrypt --pinentry-mode loopback \
+            --passphrase-file "${BACKUP_PASSPHRASE_FILE:-$HOME/.config/vaultwarden-backup/passphrase}" \
+            "$file" > "$decrypted" 2>/dev/null; then
+            error_verify "Decryption failed (wrong passphrase or corrupted file)"
+            return 1
+        fi
+        success_verify "Decryption succeeded"
+        file="$decrypted"
+    fi
+
     # Verify gzip integrity if compressed
     if [[ "$file" == *.gz ]]; then
         log_verify "Verifying gzip compression..."
@@ -303,7 +320,7 @@ main() {
                 failed=$((failed + 1))
             fi
             echo ""
-        done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
+        done < <(find "$BACKUP_DIR" -type f \( -name "*.sql.gz.gpg" -o -name "*.sql.gz" -o -name "*.sql" \) -print0 | sort -rz)
 
         print_section "Verification Summary"
         success_verify "Verified: $verified"
