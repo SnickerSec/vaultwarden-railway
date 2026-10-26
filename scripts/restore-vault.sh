@@ -148,7 +148,7 @@ get_database_info() {
     local table_count=$(railway_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | xargs)
     log_restore "Current table count: $table_count"
 
-    local row_count=$(railway_query "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+    local row_count=$({ railway_query "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0"; } | xargs)
     log_restore "Current user count: $row_count"
 
     if [[ "$row_count" -gt 0 ]]; then
@@ -210,7 +210,7 @@ verify_restore() {
         success_restore "Tables restored: $table_count"
     fi
 
-    local user_count=$(railway_query "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs || echo "0")
+    local user_count=$({ railway_query "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0"; } | xargs)
     if [[ "$user_count" -gt 0 ]]; then
         success_restore "User data verified: $user_count users"
     else
