@@ -23,7 +23,9 @@ The script runs `pg_dump` *inside* the Railway Postgres container over `railway 
 - Verified (valid gzip + pg_dump completion marker) before it is kept
 - Encrypted with GPG (AES256): `vaultwarden_db_backup_YYYYMMDD_HHMMSS.sql.gz.gpg`
 
-**Retention:** 30 days (`BACKUP_RETENTION_DAYS`)
+**Retention:** 30 days locally (`BACKUP_RETENTION_DAYS`), 90 days offsite (`BACKUP_REMOTE_RETENTION_DAYS`)
+
+**Offsite copy:** if `BACKUP_RCLONE_REMOTE` is set, every run copies the encrypted backups there with rclone and verifies them (see [Offsite Copies](#offsite-copies-google-drive)). A failed upload fails the run.
 
 **On failure:** the script opens a GitHub issue in `BACKUP_ISSUE_REPO` (if set) and exits non-zero.
 
@@ -74,7 +76,35 @@ gpg --decrypt --pinentry-mode loopback \
   vaultwarden_db_backup_TIMESTAMP.sql.gz.gpg | gunzip > backup.sql
 ```
 
-Backups live on a single machine, so copy them offsite too (see [Recommended Offsite](#recommended-offsite)). They're already encrypted, so they're safe to sync to cloud storage.
+### Offsite Copies (Google Drive)
+
+Backups on a single machine are lost with that machine. The script can copy them to any [rclone](https://rclone.org) remote; these steps use Google Drive. Backups are GPG-encrypted before upload, so Google only ever sees ciphertext.
+
+1. **Install rclone** (the distro package is often years old):
+   ```bash
+   V=$(curl -fsSL https://downloads.rclone.org/version.txt | awk '{print $2}')
+   cd "$(mktemp -d)"
+   curl -fsSLO "https://downloads.rclone.org/$V/rclone-$V-linux-amd64.zip"
+   curl -fsSL "https://downloads.rclone.org/$V/SHA256SUMS" | grep " rclone-$V-linux-amd64.zip$" | sha256sum -c
+   unzip -j "rclone-$V-linux-amd64.zip" '*/rclone' && install -m 755 rclone ~/.local/bin/
+   ```
+
+2. **Create the Drive remote** with the `drive.file` scope, so rclone can only see files it created, not the rest of your Drive:
+   ```bash
+   rclone config create gdrive drive scope=drive.file
+   ```
+   This opens a browser to authorize. On a headless machine, add `config_is_local=false`: rclone prints an `rclone authorize ...` command to run on a computer with a browser, then asks for the token it outputs.
+
+3. **Enable it** in `~/.config/vaultwarden-backup/env`:
+   ```bash
+   BACKUP_RCLONE_REMOTE=gdrive:vaultwarden-backups
+   ```
+
+4. **Test:** `systemctl --user start vaultwarden-backup.service`, then `rclone lsl gdrive:vaultwarden-backups`.
+
+The script uses `rclone copy`, which never deletes offsite files, and prunes offsite copies with their own longer retention. A wiped local directory can't take the offsite copies with it. Deletions go to the Drive trash.
+
+To restore from Drive: `rclone copy gdrive:vaultwarden-backups/<file> .`, then follow [RESTORE.md](RESTORE.md).
 
 ## Manual Backup Methods
 
@@ -269,7 +299,7 @@ done
 - **Security:** Protect file permissions
 
 ### Recommended Offsite
-- **Cloud Storage:** Google Drive, Dropbox, OneDrive
+- **Cloud Storage:** Google Drive (built in, see [Offsite Copies](#offsite-copies-google-drive)), Dropbox, OneDrive
 - **External Drive:** Encrypted external HDD/SSD
 - **NAS:** Network attached storage
 - **S3/Object Storage:** AWS S3, Backblaze B2

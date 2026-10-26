@@ -13,6 +13,9 @@
 #   BACKUP_RETENTION_DAYS   Delete backups older than this (default: 30)
 #   BACKUP_PASSPHRASE_FILE  GPG passphrase file (default: ~/.config/vaultwarden-backup/passphrase)
 #   BACKUP_ISSUE_REPO       owner/repo to open a GitHub issue in on failure
+#   BACKUP_RCLONE_REMOTE    rclone destination for offsite copies, e.g.
+#                           gdrive:vaultwarden-backups (default: no offsite copy)
+#   BACKUP_REMOTE_RETENTION_DAYS  Delete offsite copies older than this (default: 90)
 #
 
 set -euo pipefail
@@ -25,6 +28,8 @@ BACKUP_DIR="${BACKUP_DIR:-$HOME/vaultwarden-backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 BACKUP_PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-$HOME/.config/vaultwarden-backup/passphrase}"
 BACKUP_ISSUE_REPO="${BACKUP_ISSUE_REPO:-}"
+BACKUP_RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-}"
+BACKUP_REMOTE_RETENTION_DAYS="${BACKUP_REMOTE_RETENTION_DAYS:-90}"
 
 log() {
     echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] $1"
@@ -99,3 +104,18 @@ log "Backup saved: $FINAL ($(du -h "$FINAL" | cut -f1))"
 
 find "$BACKUP_DIR" -maxdepth 1 -name 'vaultwarden_db_backup_*.sql.gz.gpg' \
     -mtime +"$BACKUP_RETENTION_DAYS" -print -delete | sed 's/^/Removed old backup: /'
+
+# Offsite copy. Copies every local backup, not just today's, so a failed
+# upload is caught up on the next run. `copy` never deletes remotely; offsite
+# copies are pruned separately with their own (longer) retention, so a wiped
+# local directory can't wipe the offsite copies with it.
+if [[ -n "$BACKUP_RCLONE_REMOTE" ]]; then
+    BACKUP_FILTER=(--include 'vaultwarden_db_backup_*.sql.gz.gpg' --max-depth 1)
+    log "Copying backups to $BACKUP_RCLONE_REMOTE..."
+    rclone copy "$BACKUP_DIR" "$BACKUP_RCLONE_REMOTE" "${BACKUP_FILTER[@]}"
+    rclone check --one-way "$BACKUP_DIR" "$BACKUP_RCLONE_REMOTE" "${BACKUP_FILTER[@]}" 2>&1 | tail -1
+    PRUNED=$(rclone delete "$BACKUP_RCLONE_REMOTE" "${BACKUP_FILTER[@]}" \
+        --min-age "${BACKUP_REMOTE_RETENTION_DAYS}d" -v 2>&1)
+    sed -nE 's/^.*INFO  : (.*): Deleted$/Removed old offsite backup: \1/p' <<< "$PRUNED"
+    log "Offsite copy verified: $(rclone lsf "$BACKUP_RCLONE_REMOTE" "${BACKUP_FILTER[@]}" | wc -l) backups in $BACKUP_RCLONE_REMOTE"
+fi
